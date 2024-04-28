@@ -29,7 +29,10 @@
 //! * Send newsletter to subscribers
 //! * Allow authors to send emails to subscribers
 
-use axum::{extract::Path, routing::get, Router};
+use axum::{
+    extract::Path, http::StatusCode, response::IntoResponse, routing::get,
+    Router,
+};
 use clap::Parser;
 
 #[derive(Parser)]
@@ -53,6 +56,16 @@ async fn greet(Path(name): Path<String>) -> String {
     format!("Hello {}!\n", name)
 }
 
+/// Health check
+///
+/// Alive server check for external services.
+///
+/// # Returns
+/// `(SuccessCode::OK, "")`
+async fn health_check() -> impl IntoResponse {
+    (StatusCode::OK, "")
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -65,9 +78,12 @@ async fn main() {
     let app = Router::new()
         .route(
             "/",
-            get(|| async { "Welcome to an Axum Zero to Production implementation!\n" }),
+            get(|| async {
+                "Welcome to an Axum Zero to Production implementation!\n"
+            }),
         )
-        .route("/:name", get(greet));
+        .route("/:name", get(greet))
+        .route("/health_check", get(health_check));
 
     // Run app using hyper while listening onto the configured port
     let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
