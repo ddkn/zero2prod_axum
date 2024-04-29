@@ -1,8 +1,12 @@
 use axum::{
-    extract::Path, http::StatusCode, response::IntoResponse, routing::get,
-    Router,
+    extract::Path,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Form, Router,
 };
 use clap::Parser;
+use serde::Deserialize;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -12,6 +16,12 @@ pub struct Cli {
     /// ip port
     #[clap(short, long, default_value_t = 9000)]
     pub port: u16,
+}
+
+#[derive(Deserialize)]
+pub struct SignUp {
+    name: String,
+    email: String,
 }
 
 /// Greet the listner
@@ -35,6 +45,16 @@ pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "")
 }
 
+pub async fn subscriptions(Form(sign_up): Form<SignUp>) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        format!(
+            "Hello {}, subscriptions will be sent to {}",
+            sign_up.name, sign_up.email
+        ),
+    )
+}
+
 pub fn app() -> Router {
     // Define single routes for now
     Router::new()
@@ -46,4 +66,5 @@ pub fn app() -> Router {
         )
         .route("/:name", get(greet))
         .route("/health_check", get(health_check))
+        .route("/subscriptions", post(subscriptions))
 }
