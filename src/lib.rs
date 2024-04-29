@@ -3,7 +3,6 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use std::io::Result;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -36,14 +35,9 @@ pub async fn health_check() -> impl IntoResponse {
     (StatusCode::OK, "")
 }
 
-pub async fn run(cli: Cli) -> Result<()> {
-    let addr = cli.addr;
-    let port = cli.port.to_string();
-    // Naive way to create a binded address
-    let bind_addr = format!("{}:{}", addr, port);
-
+pub fn app() -> Router {
     // Define single routes for now
-    let app = Router::new()
+    Router::new()
         .route(
             "/",
             get(|| async {
@@ -51,9 +45,5 @@ pub async fn run(cli: Cli) -> Result<()> {
             }),
         )
         .route("/:name", get(greet))
-        .route("/health_check", get(health_check));
-
-    // Run app using hyper while listening onto the configured port
-    let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
-    axum::serve(listener, app).await
+        .route("/health_check", get(health_check))
 }

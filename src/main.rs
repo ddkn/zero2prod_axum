@@ -30,11 +30,18 @@
 //! * Allow authors to send emails to subscribers
 
 use clap::Parser;
-use std::io::Result;
-use zero2prod_axum::{run, Cli};
+use zero2prod_axum::{app, Cli};
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     let cli = Cli::parse();
-    run(cli).await
+
+    let addr = cli.addr;
+    let port = cli.port.to_string();
+    // Naive way to create a binded address
+    let bind_addr = format!("{}:{}", addr, port);
+
+    // Run app using hyper while listening onto the configured port
+    let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
+    axum::serve(listener, app()).await.unwrap();
 }
