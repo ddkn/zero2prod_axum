@@ -17,6 +17,7 @@ name = "zero2prod_axum"
 [dependencies]
 axum = "0.7.5"
 clap = { version = "4.5.4", features = ["derive"] }
+serde = { version = "1.0.199", features = ["derive"] }
 tokio = { version = "1.37.0", features = ["full"] }
 
 [dev-dependencies]
