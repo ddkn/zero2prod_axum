@@ -19,7 +19,7 @@ const PORT: u16 = 0;
 /// to be able to `.collect()` the body.
 #[tokio::test]
 async fn health_check_oneshot() {
-    let app = zero2prod_axum::app();
+    let app = zero2prod_axum::startup::app();
 
     let resp = app
         .oneshot(
@@ -115,9 +115,11 @@ async fn subscribe_returns_400_for_missing_form_data() {
 /// example, Django. This allows us to change the backend implementation
 /// but still use the testing pipline here as needed.
 async fn spawn_app() -> SocketAddr {
-    let cli = zero2prod_axum::Cli {
+    let cli = zero2prod_axum::startup::Cli {
         addr: ADDR.to_string(),
         port: PORT,
+        settings: None,
+        ignore_settings: false,
     };
     let bind_addr = format!("{}:{}", cli.addr.to_string(), cli.port);
 
@@ -125,7 +127,9 @@ async fn spawn_app() -> SocketAddr {
     let addr = listener.local_addr().unwrap();
 
     let _ = tokio::spawn(async move {
-        axum::serve(listener, zero2prod_axum::app()).await.unwrap();
+        axum::serve(listener, zero2prod_axum::startup::app())
+            .await
+            .unwrap();
     });
 
     addr
