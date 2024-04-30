@@ -30,6 +30,7 @@
 //! * Allow authors to send emails to subscribers
 
 use clap::Parser;
+use sqlx::sqlite::SqlitePoolOptions;
 use zero2prod_axum::{
     settings,
     startup::{app, Cli},
@@ -45,23 +46,29 @@ async fn main() {
     let ignore_settings = cli.ignore_settings;
 
     let bind_addr: String;
-    let db_name: String;
+    let connection_str: String;
     if ignore_settings {
         bind_addr = format!("{}:{}", addr, port);
         // Naive way to create a binded address
-        db_name = "./demo.db".to_string();
+        connection_str = "sqlite:demo.db".to_string();
     } else {
         let app_settings =
             settings::read_settings_file(settings_file.as_deref())
                 .expect("Failed to read settings file.");
         let addr = app_settings.addr;
         let port = app_settings.port;
-        db_name = app_settings.database.name;
+        connection_str = app_settings.database.connection_string();
         // Naive way to create a binded address
         bind_addr = format!("{}:{}", addr, port);
     }
 
+    let pool = SqlitePoolOptions::new()
+        .max_connections(10)
+        .connect(&connection_str)
+        .await
+        .expect("Failed to create database pool.");
+
     // Run app using hyper while listening onto the configured port
     let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
-    axum::serve(listener, app()).await.unwrap();
+    axum::serve(listener, app(pool)).await.unwrap();
 }
