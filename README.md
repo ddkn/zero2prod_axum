@@ -11,7 +11,8 @@ Some notable changes include the following substitutions,
 
 - [x] 1. Getting Started
 - [x] 2. Building An Email Newsletter
-- [ ] 3. Sign Up A New Subscriber
+- [x] 3. Sign Up A New Subscriber
+  - [ ] 3.10.1 Test Isolation
 
 ## Useful external packages
 
@@ -48,19 +49,35 @@ cargo run -- --port 3000
 
 ### Usage
 
+While there are command line options, the typcial configuration is expected to be in `settings.toml`.
+
 ```
 Usage: zero2prod_axum [OPTIONS]
 
 Options:
-  -a, --addr <ADDR>  ip address [default: 127.0.0.1]
-  -p, --port <PORT>  ip port [default: 9000]
-  -h, --help         Print help
+  -a, --addr <ADDR>          ip address [default: 127.0.0.1]
+  -p, --port <PORT>          ip port [default: 9000]
+  -s, --settings <SETTINGS>  settings file
+  -i, --ignore-settings      override settings file
+  -h, --help                 Print help
+```
+
+#### Settings
+
+The settings file (settings.toml) is currently organized as such for a sqlite database.
+
+```
+addr = "127.0.0.1"
+port = 9000
+
+[database]
+name = demo.db
 ```
 
 ## Documentation
 
 ```
-cargo doc --open
+cargo doc --open --lib --no-deps
 ```
 
 ## Database
@@ -83,7 +100,7 @@ sqlx migrate add create_signup_table
 Edit the newly created migration file to include the following,
 
 ```
-CREATE TABLE IF NOT EXISTS signup (
+CREATE TABLE IF NOT EXISTS subscriptions (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -91,4 +108,4 @@ CREATE TABLE IF NOT EXISTS signup (
 );
 ```
 
-We are going to try to use `UUID`'s, but `sqlite` does not natively support them so using `TEXT` instead. Also, we do not have timezones so we will save all the time as UTC for simplicity. We can use [chrono](https://docs.rs/chrono/latest/chrono/) for handling timezones if necessary.
+We are going to use `UUID`s for `id`, but `sqlite` does not natively support them so using `TEXT` instead. Also, we do not have timezones so we will save all the time as UTC for simplicity, this is easily achieved by using `uuid::Uuid::new_v4().to_string()`. We can use [chrono](https://docs.rs/chrono/latest/chrono/) for UTC and handling timezones if necessary. As with sqlite, we need to convert the chrono utc time to a sqlite compatible string, `"%Y-%m-%d %H:%M:%S"`.
