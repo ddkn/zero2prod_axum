@@ -2,6 +2,11 @@
 
 This is my journey of going through the book [Zero 2 Production 2e](https://www.zero2prod.com/) that uses [axum](https://docs.rs/axum/latest/axum/). My intention is to learn axum due to being created by the [tokio](https://tokio.rs/) developers, and forcing myself to look at the docs versus what is verbatim in the book. I may end this prematurely, depending on how comfortable I become with [rust](https://www.rust-lang.org) development. If I do, I will indicate below.
 
+Some notable changes include the following substitutions,
+
+* **sqlite**: instead of `postgresql`
+* **toml** instead of `config`
+
 ## Progress
 
 - [x] 1. Getting Started
@@ -57,3 +62,33 @@ Options:
 ```
 cargo doc --open
 ```
+
+## Database
+
+We are using `sqlx` as per the books request, but using `sqlite` instead to keep the setup minimal, instead of `postgresql` used in the book.
+
+```
+cargo add sqlx -F sqlx/sqlite,runtime-tokio,rustls/sqlite,migrate,uuid
+cargo install sqlx-cli --no-default-features -F sqlite,rustls
+```
+
+Create the Database
+
+```
+export DATABSE_URL=sqlite:./demo.db
+sqlx database create
+sqlx migrate add create_signup_table
+```
+
+Edit the newly created migration file to include the following,
+
+```
+CREATE TABLE IF NOT EXISTS signup (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    subscribed_at TEXT DEFAULT (datetime('now','utc')) -- Stores the timestamp in UTC
+);
+```
+
+We are going to try to use `UUID`'s, but `sqlite` does not natively support them so using `TEXT` instead. Also, we do not have timezones so we will save all the time as UTC for simplicity. We can use [chrono](https://docs.rs/chrono/latest/chrono/) for handling timezones if necessary.
