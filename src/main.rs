@@ -30,7 +30,10 @@
 //! * Allow authors to send emails to subscribers
 
 use clap::Parser;
-use zero2prod_axum::{app, Cli};
+use zero2prod_axum::{
+    settings,
+    startup::{app, Cli},
+};
 
 #[tokio::main]
 async fn main() {
@@ -38,8 +41,25 @@ async fn main() {
 
     let addr = cli.addr;
     let port = cli.port.to_string();
-    // Naive way to create a binded address
-    let bind_addr = format!("{}:{}", addr, port);
+    let settings_file = cli.settings;
+    let ignore_settings = cli.ignore_settings;
+
+    let bind_addr: String;
+    let db_name: String;
+    if ignore_settings {
+        bind_addr = format!("{}:{}", addr, port);
+        // Naive way to create a binded address
+        db_name = "./demo.db".to_string();
+    } else {
+        let app_settings =
+            settings::read_settings_file(settings_file.as_deref())
+                .expect("Failed to read settings file.");
+        let addr = app_settings.addr;
+        let port = app_settings.port;
+        db_name = app_settings.database.name;
+        // Naive way to create a binded address
+        bind_addr = format!("{}:{}", addr, port);
+    }
 
     // Run app using hyper while listening onto the configured port
     let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
