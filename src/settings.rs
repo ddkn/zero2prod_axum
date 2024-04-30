@@ -23,6 +23,12 @@ pub struct DatabaseSettings {
     pub name: String,
 }
 
+impl DatabaseSettings {
+    pub fn connection_string(&self) -> String {
+        format!("sqlite://{}", self.name)
+    }
+}
+
 pub fn read_settings_file(
     path: Option<&str>,
 ) -> Result<AppSettings, toml::de::Error> {

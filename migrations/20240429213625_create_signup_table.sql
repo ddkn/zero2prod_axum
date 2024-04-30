@@ -1,5 +1,5 @@
 -- Add migration script here
-CREATE TABLE signup (
+CREATE TABLE subscriptions (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT NOT NULL,

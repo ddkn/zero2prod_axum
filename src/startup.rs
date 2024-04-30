@@ -3,9 +3,10 @@
 use crate::routes::{health_check, subscriptions};
 use axum::{
     routing::{get, post},
-    Router,
+    Extension, Router,
 };
 use clap::Parser;
+use sqlx::SqlitePool;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -23,7 +24,7 @@ pub struct Cli {
     pub ignore_settings: bool,
 }
 
-pub fn app() -> Router {
+pub fn app(pool: SqlitePool) -> Router {
     // Define single routes for now
     Router::new()
         .route(
@@ -34,4 +35,5 @@ pub fn app() -> Router {
         )
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscriptions))
+        .layer(Extension(pool))
 }
