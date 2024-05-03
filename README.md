@@ -33,6 +33,20 @@ cargo watch -x check -x test -x run
 
 If at any point, one of those steps fails, the code does not compile. It should not be added to the git repository. This could be added as a git [pre-commit](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) hook if necessary.
 
+### Debian/Ubuntu
+
+If you are on Debian/Ubuntu you will need the following external packages installed for sqlx with sqlite + TLS support,
+
+```
+sudo apt install pkg-config libssl-dev
+```
+
+You might also need a C/C++ compiler for sqlite linking
+
+```
+sudo apt install clang
+```
+
 ## Build
 
 ```
