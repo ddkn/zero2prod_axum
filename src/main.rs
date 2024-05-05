@@ -30,7 +30,8 @@
 //! * Allow authors to send emails to subscribers
 
 use clap::Parser;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::str::FromStr;
 use zero2prod_axum::{
     settings,
     startup::{app, Cli},
@@ -62,9 +63,12 @@ async fn main() {
         bind_addr = format!("{}:{}", addr, port);
     }
 
+    let conn_opt = SqliteConnectOptions::from_str(&connection_str)
+        .expect("Failed to create sqlite connection.")
+        .create_if_missing(true);
     let pool = SqlitePoolOptions::new()
         .max_connections(10)
-        .connect(&connection_str)
+        .connect_with(conn_opt)
         .await
         .expect("Failed to create database pool.");
 

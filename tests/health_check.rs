@@ -6,9 +6,14 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use reqwest::Client;
-use sqlx::{sqlite::SqlitePoolOptions, Connection, SqliteConnection};
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions},
+    Connection, SqliteConnection,
+};
 use std::net::SocketAddr;
+use std::{fs::remove_file, str::FromStr};
 use tower::ServiceExt;
+use uuid::Uuid;
 
 const ADDR: &str = "127.0.0.1";
 /// Bind to port 0 which causes the OS to hunt for an available port.
@@ -54,7 +59,7 @@ async fn health_check_oneshot() {
 /// Tests proper http client requests.
 #[tokio::test]
 async fn health_check_success() {
-    let addr = spawn_app().await;
+    let (addr, db_name) = spawn_app().await;
 
     let client = Client::new();
     let resp = client
@@ -65,6 +70,11 @@ async fn health_check_success() {
 
     assert!(resp.status().is_success());
     assert_eq!(resp.content_length(), Some(0));
+
+    cleanup_test_db(db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        db_name.as_str()
+    ));
 }
 
 /// Subscribe valid data
@@ -72,12 +82,9 @@ async fn health_check_success() {
 /// Checks for status code 200
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_form_data() {
-    let addr = spawn_app().await;
-    let settings =
-        zero2prod_axum::settings::read_settings_file(Some("settings.toml"))
-            .expect("Failed to read settings file.");
-    let connection_str = settings.database.connection_string();
-    let mut connection = SqliteConnection::connect(&connection_str)
+    let (addr, db_name) = spawn_app().await;
+
+    let mut connection = SqliteConnection::connect(&db_name)
         .await
         .expect("Failed to connect to database.");
 
@@ -102,6 +109,11 @@ async fn subscribe_returns_200_for_valid_form_data() {
 
     assert_eq!(saved.email, "bnb@example.com");
     assert_eq!(saved.name, "bird and boy");
+
+    cleanup_test_db(db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        db_name.as_str()
+    ));
 }
 
 /// Subscribe missing data
@@ -111,7 +123,7 @@ async fn subscribe_returns_200_for_valid_form_data() {
 /// returns a status code of 400.
 #[tokio::test]
 async fn subscribe_returns_400_for_missing_form_data() {
-    let addr = spawn_app().await;
+    let (addr, db_name) = spawn_app().await;
     let client = Client::new();
 
     let test_cases = vec![
@@ -136,6 +148,11 @@ async fn subscribe_returns_400_for_missing_form_data() {
             error_mesg
         );
     }
+
+    cleanup_test_db(db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        db_name.as_str()
+    ));
 }
 
 /// spawn_app
@@ -143,17 +160,10 @@ async fn subscribe_returns_400_for_missing_form_data() {
 /// Spawn's the app, which can be replaced with decoupled backend, for
 /// example, Django. This allows us to change the backend implementation
 /// but still use the testing pipline here as needed.
-async fn spawn_app() -> SocketAddr {
-    let settings =
-        zero2prod_axum::settings::read_settings_file(Some("settings.toml"))
-            .expect("Failed to read settings file.");
-
-    let connection_str = settings.database.connection_string();
-    let pool = SqlitePoolOptions::new()
-        .max_connections(10)
-        .connect(&connection_str)
+async fn spawn_app() -> (SocketAddr, String) {
+    let (pool, db_name) = create_connect_test_db()
         .await
-        .expect("Failed to create database pool.");
+        .expect("Unable to create test database");
 
     // Tests require us to use port 0 for random ports otherwise all but one fail
     let port = PORT;
@@ -168,5 +178,32 @@ async fn spawn_app() -> SocketAddr {
             .unwrap();
     });
 
-    addr
+    (addr, db_name)
+}
+
+async fn create_connect_test_db() -> Result<(SqlitePool, String), sqlx::Error> {
+    let uuid_name = Uuid::new_v4();
+    let db_name = format!("{}.db", uuid_name);
+    let db_path = format!("sqlite://{}", db_name);
+
+    let conn_opt =
+        SqliteConnectOptions::from_str(&db_path)?.create_if_missing(true);
+
+    let pool = SqlitePoolOptions::new()
+        .max_connections(10)
+        .connect_with(conn_opt)
+        .await
+        .expect("Failed to create database pool.");
+
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to migrate the database");
+
+    Ok((pool, db_name))
+}
+
+async fn cleanup_test_db(db_name: String) -> Result<(), sqlx::Error> {
+    remove_file(&db_name)?;
+    Ok(())
 }

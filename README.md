@@ -12,7 +12,12 @@ Some notable changes include the following substitutions,
 - [x] 1. Getting Started
 - [x] 2. Building An Email Newsletter
 - [x] 3. Sign Up A New Subscriber
-  - [ ] 3.10.1 Test Isolation
+  - [x] 3.10.1 Test Isolation
+- [ ] 4. Telemetry
+
+### Warning
+
+In 3.10.1 we create a tempoary named database with a uuid4 name. If the test completes it deletes the database. If it fails it does not delete the database at the moment. We could add a `panic` to clear up all uuid databases, if need be, but this is a minor detail for learning at the moment.
 
 ## Useful external packages
 
