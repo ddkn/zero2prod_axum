@@ -20,11 +20,15 @@
 
 use crate::routes::{health_check, subscriptions};
 use axum::{
+    http::Request,
     routing::{get, post},
     Extension, Router,
 };
 use clap::Parser;
 use sqlx::SqlitePool;
+// use tower::{Service, ServiceBuilder, ServiceExt};
+use tower_http::trace::TraceLayer;
+use tracing::Level;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -54,4 +58,18 @@ pub fn app(pool: SqlitePool) -> Router {
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscriptions))
         .layer(Extension(pool))
+        .layer(TraceLayer::new_for_http().make_span_with(
+            |request: &Request<_>| {
+                let request_id = uuid::Uuid::new_v4().to_string();
+
+                tracing::span!(
+                    Level::DEBUG,
+                    "request",
+                    %request_id,
+                    method = ?request.method(),
+                    uri = %request.uri(),
+                    version = ?request.version(),
+                )
+            },
+        ))
 }
