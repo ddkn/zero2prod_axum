@@ -12,8 +12,9 @@ Some notable changes include the following substitutions,
 - [x] 1. Getting Started
 - [x] 2. Building An Email Newsletter
 - [x] 3. Sign Up A New Subscriber
-  - [x] 3.10.1 Test Isolation
 - [ ] 4. Telemetry
+  - ~[ ] 4.1 to 4.2~ Unecessary since it migrates from `log` -> `tracing`
+  - [ ] 4.5.4 Instrumentin Future's
 
 ### Warning
 
@@ -63,7 +64,7 @@ cargo build
 The command line options may change over time, but the basic usage should match to run on `127.0.0.1:9000`,
 
 ```
-cargo run -- --port 3000
+RUST_LOG=trace; cargo run
 ```
 
 ### Usage

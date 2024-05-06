@@ -32,6 +32,9 @@
 use clap::Parser;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
+use tracing_subscriber::{
+    fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter,
+};
 use zero2prod_axum::{
     settings,
     startup::{app, Cli},
@@ -39,6 +42,18 @@ use zero2prod_axum::{
 
 #[tokio::main]
 async fn main() {
+    // Logging: add tracing subscriber with log options from RUST_LOG or fallback
+    // This defaults to the following packages levels:
+    // * zero2prod       = debug
+    // * tower_http      = debug
+    // * axum::rejection = trace
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            "zero2prod_axum=debug,tower_http=debug,axum::rejection=trace".into()
+        }))
+        .init();
+
     let cli = Cli::parse();
 
     let addr = cli.addr;
@@ -72,6 +87,7 @@ async fn main() {
         .await
         .expect("Failed to create database pool.");
 
+    tracing::info!("Listening on {}", port);
     // Run app using hyper while listening onto the configured port
     let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
     axum::serve(listener, app(pool)).await.unwrap();
