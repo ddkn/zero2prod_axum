@@ -22,6 +22,7 @@ use axum::{http::StatusCode, response::IntoResponse, Extension, Form};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use sqlx::SqlitePool;
+use tracing::Instrument;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -42,7 +43,18 @@ pub async fn subscriptions(
     let uuid = Uuid::new_v4().to_string();
     let current_time = get_current_utc_timestamp();
 
-    sqlx::query!(
+    let request_span = tracing::trace_span!(
+        "add_new_subscriber",
+        subscriber_email = %sign_up.email,
+        subscriber_name = %sign_up.name,
+    );
+
+    let _request_span_guard = request_span.enter();
+
+    let query_span =
+        tracing::info_span!("Saving new subscriber details into database");
+
+    match sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
         VALUES ($1, $2, $3, $4)
@@ -53,8 +65,16 @@ pub async fn subscriptions(
         current_time
     )
     .execute(&pool)
+    .instrument(query_span)
     .await
-    .expect("Unable to insert subscription.");
-
-    StatusCode::OK
+    // .expect("Unable to insert subscription.");
+    {
+        Ok(_) => {
+            StatusCode::OK
+        },
+        Err(e) => {
+            tracing::error!("Failed to execute query {:?}", e);
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
 }
