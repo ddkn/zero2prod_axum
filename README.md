@@ -14,7 +14,6 @@ Some notable changes include the following substitutions,
 - [x] 3. Sign Up A New Subscriber
 - [ ] 4. Telemetry
   - ~[ ] 4.1 to 4.2~ Unecessary since it migrates from `log` -> `tracing`
-  - [ ] 4.5.4 Instrumentin Future's
 
 ### Warning
 
@@ -64,7 +63,7 @@ cargo build
 The command line options may change over time, but the basic usage should match to run on `127.0.0.1:9000`,
 
 ```
-RUST_LOG=trace; cargo run
+RUST_LOG=trace cargo run
 ```
 
 ### Usage
@@ -129,3 +128,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 ```
 
 We are going to use `UUID`s for `id`, but `sqlite` does not natively support them so using `TEXT` instead. Also, we do not have timezones so we will save all the time as UTC for simplicity, this is easily achieved by using `uuid::Uuid::new_v4().to_string()`. We can use [chrono](https://docs.rs/chrono/latest/chrono/) for UTC and handling timezones if necessary. As with sqlite, we need to convert the chrono utc time to a sqlite compatible string, `"%Y-%m-%d %H:%M:%S"`.
+
+Run the migrations
+
+```
+sqlx migrate run
+```

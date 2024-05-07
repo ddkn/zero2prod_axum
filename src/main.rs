@@ -48,7 +48,7 @@ async fn main() {
     // * tower_http      = debug
     // * axum::rejection = trace
     tracing_subscriber::registry()
-        .with(fmt::layer())
+        .with(fmt::layer().pretty())
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             "zero2prod_axum=debug,tower_http=debug,axum::rejection=trace".into()
         }))
