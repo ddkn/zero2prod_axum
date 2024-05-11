@@ -32,27 +32,16 @@
 use clap::Parser;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
-use tracing_subscriber::{
-    fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter,
-};
 use zero2prod_axum::{
     settings,
     startup::{app, Cli},
+    telemetry::{create_subscriber, init_subscriber},
 };
 
 #[tokio::main]
 async fn main() {
-    // Logging: add tracing subscriber with log options from RUST_LOG or fallback
-    // This defaults to the following packages levels:
-    // * zero2prod       = debug
-    // * tower_http      = debug
-    // * axum::rejection = trace
-    tracing_subscriber::registry()
-        .with(fmt::layer().pretty())
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            "zero2prod_axum=debug,tower_http=debug,axum::rejection=trace".into()
-        }))
-        .init();
+    let subscriber = create_subscriber("zero2prod_axum".into(), "info".into());
+    init_subscriber(subscriber);
 
     let cli = Cli::parse();
 

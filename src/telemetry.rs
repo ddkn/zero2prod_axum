@@ -1,0 +1,47 @@
+// Copyright 2024 David Kalliecharan
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// 	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Copyright (c) 2024 David Kalliecharan
+//
+// SPDX-License-Identifier: BSD-2-Clause
+
+//! src/routes/telemetry.rs
+
+use tracing::{subscriber::set_global_default, Subscriber};
+use tracing_log::LogTracer;
+use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter, Registry};
+
+/// Compose multi layers into a `tracing` subscriber
+///
+/// Using `impl Subscriber` to be more generic. We also need `Send` and
+/// `Sync` to be able to pass to `init_subscriber` later.
+pub fn create_subscriber(
+    _name: String,
+    env_filter: String,
+) -> impl Subscriber + Send + Sync {
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new(env_filter));
+
+    Registry::default()
+        .with(fmt::layer().pretty())
+        .with(env_filter)
+}
+
+/// Initialize global subscriber
+///
+/// Processes span data for the subscriber and supports log support for tracing
+pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
+    LogTracer::init().expect("Failed to set logger.");
+    set_global_default(subscriber).expect("Failed to set global subscriber");
+}
