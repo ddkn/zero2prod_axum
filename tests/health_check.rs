@@ -5,6 +5,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use once_cell::sync::Lazy;
 use reqwest::Client;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions},
@@ -18,6 +19,14 @@ use uuid::Uuid;
 const ADDR: &str = "127.0.0.1";
 /// Bind to port 0 which causes the OS to hunt for an available port.
 const PORT: u16 = 0;
+
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let subscriber = zero2prod_axum::telemetry::create_subscriber(
+        "test".into(),
+        "debug".into(),
+    );
+    zero2prod_axum::telemetry::init_subscriber(subscriber);
+});
 
 /// Oneshot test
 ///
@@ -161,6 +170,8 @@ async fn subscribe_returns_400_for_missing_form_data() {
 /// example, Django. This allows us to change the backend implementation
 /// but still use the testing pipline here as needed.
 async fn spawn_app() -> (SocketAddr, String) {
+    Lazy::force(&TRACING);
+
     let (pool, db_name) = create_connect_test_db()
         .await
         .expect("Unable to create test database");
