@@ -21,7 +21,7 @@ const ADDR: &str = "127.0.0.1";
 const PORT: u16 = 0;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
-    let subscriber = zero2prod_axum::telemetry::create_subscriber(
+    let subscriber = zero2prod_axum::telemetry::get_subscriber(
         "test".into(),
         "debug".into(),
     );

@@ -35,12 +35,12 @@ use std::str::FromStr;
 use zero2prod_axum::{
     settings,
     startup::{app, Cli},
-    telemetry::{create_subscriber, init_subscriber},
+    telemetry::{get_subscriber, init_subscriber},
 };
 
 #[tokio::main]
 async fn main() {
-    let subscriber = create_subscriber("zero2prod_axum".into(), "info".into());
+    let subscriber = get_subscriber("zero2prod_axum".into(), "info".into());
     init_subscriber(subscriber);
 
     let cli = Cli::parse();
