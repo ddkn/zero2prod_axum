@@ -22,21 +22,27 @@ use tracing::{subscriber::set_global_default, Subscriber};
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
 use tracing_subscriber::{
-    fmt, fmt::MakeWriter, layer::SubscriberExt, EnvFilter, Registry,
+    fmt::MakeWriter, layer::SubscriberExt, EnvFilter, Registry,
 };
 
 /// Compose multi layers into a `tracing` subscriber
 ///
 /// Using `impl Subscriber` to be more generic. We also need `Send` and
 /// `Sync` to be able to pass to `init_subscriber` later.
-pub fn get_subscriber(
+pub fn get_subscriber<Sink>(
     name: String,
     env_filter: String,
-) -> impl Subscriber + Send + Sync {
+    sink: Sink,
+) -> impl Subscriber + Send + Sync
+where
+    // Higher-ranked trait bound (HRTB) Sink implements the MakeWriter trait
+    // See: https://doc.rust-lang.org/nomicon/hrtb.html
+    Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
+{
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(env_filter));
 
-    let formatting_layer = BunyanFormattingLayer::new(name, std::io::stdout);
+    let formatting_layer = BunyanFormattingLayer::new(name, sink);
 
     Registry::default()
         .with(env_filter)

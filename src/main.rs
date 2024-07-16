@@ -40,7 +40,8 @@ use zero2prod_axum::{
 
 #[tokio::main]
 async fn main() {
-    let subscriber = get_subscriber("zero2prod_axum".into(), "info".into());
+    let subscriber =
+        get_subscriber("zero2prod_axum".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
 
     let cli = Cli::parse();

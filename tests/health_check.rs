@@ -24,6 +24,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     let subscriber = zero2prod_axum::telemetry::get_subscriber(
         "test".into(),
         "debug".into(),
+        std::io::stdout,
     );
     zero2prod_axum::telemetry::init_subscriber(subscriber);
 });
