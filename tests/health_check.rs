@@ -21,12 +21,25 @@ const ADDR: &str = "127.0.0.1";
 const PORT: u16 = 0;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
-    let subscriber = zero2prod_axum::telemetry::get_subscriber(
-        "test".into(),
-        "debug".into(),
-        std::io::stdout,
-    );
-    zero2prod_axum::telemetry::init_subscriber(subscriber);
+    let default_filter_level = "info".to_string();
+    let subscriber_name = "test".to_string();
+    // Output of `get_subscriber` cannot be assigned to a variable since
+    // the Sink is part of the return type, therefore,
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = zero2prod_axum::telemetry::get_subscriber(
+            subscriber_name,
+            default_filter_level,
+            std::io::stdout,
+        );
+        zero2prod_axum::telemetry::init_subscriber(subscriber);
+    } else {
+        let subscriber = zero2prod_axum::telemetry::get_subscriber(
+            subscriber_name,
+            default_filter_level,
+            std::io::sink,
+        );
+        zero2prod_axum::telemetry::init_subscriber(subscriber);
+    }
 });
 
 /// Oneshot test
