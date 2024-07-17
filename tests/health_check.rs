@@ -7,6 +7,7 @@ use axum::{
 use http_body_util::BodyExt;
 use once_cell::sync::Lazy;
 use reqwest::Client;
+use secrecy::ExposeSecret;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions},
     Connection, SqliteConnection,
@@ -52,7 +53,11 @@ async fn health_check_oneshot() {
         zero2prod_axum::settings::read_settings_file(Some("settings.toml"))
             .expect("Failed to read settings file.");
 
-    let connection_str = settings.database.connection_string();
+    let connection_str = settings
+        .database
+        .connection_string()
+        .expose_secret()
+        .to_string();
     let pool = SqlitePoolOptions::new()
         .max_connections(10)
         .connect(&connection_str)

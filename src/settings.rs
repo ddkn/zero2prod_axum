@@ -20,6 +20,10 @@
 
 use serde::Deserialize;
 use std::fs;
+// See p.122 in book for using Secret with postgres and passwords.
+// As secrecy does not implement Display
+use secrecy::Secret;
+// use secrecy::ExposeSecret;
 
 /// AppSettings
 ///
@@ -39,11 +43,14 @@ pub struct AppSettings {
 #[derive(Deserialize, Debug)]
 pub struct DatabaseSettings {
     pub name: String,
+    // We need to use the `secrey::ExposeSecret`
+    // for `password.expose_secret()`
+    //pub password: Secret<String>,
 }
 
 impl DatabaseSettings {
-    pub fn connection_string(&self) -> String {
-        format!("sqlite://{}", self.name)
+    pub fn connection_string(&self) -> Secret<String> {
+        Secret::new(format!("sqlite://{}", self.name))
     }
 }
 

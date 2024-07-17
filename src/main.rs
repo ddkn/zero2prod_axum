@@ -30,6 +30,7 @@
 //! * Allow authors to send emails to subscribers
 
 use clap::Parser;
+use secrecy::ExposeSecret;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 use zero2prod_axum::{
@@ -63,7 +64,11 @@ async fn main() {
                 .expect("Failed to read settings file.");
         let addr = app_settings.addr;
         let port = app_settings.port;
-        connection_str = app_settings.database.connection_string();
+        connection_str = app_settings
+            .database
+            .connection_string()
+            .expose_secret()
+            .to_string();
         // Naive way to create a binded address
         bind_addr = format!("{}:{}", addr, port);
     }
