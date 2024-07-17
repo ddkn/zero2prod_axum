@@ -39,7 +39,6 @@ fn get_current_utc_timestamp() -> String {
     name = "Adding a new subscriber",
     skip(sign_up, pool),
     fields(
-        request_id = %Uuid::new_v4(),
         subscriber_email = %sign_up.email,
         subscriber_name = %sign_up.name
     )

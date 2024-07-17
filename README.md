@@ -12,9 +12,9 @@ Some notable changes include the following substitutions,
 - [x] 1. Getting Started
 - [x] 2. Building An Email Newsletter
 - [x] 3. Sign Up A New Subscriber
-- [ ] 4. Telemetry
+- [x] 4. Telemetry
   - ~[ ] 4.1 to 4.2~ Unecessary since it migrates from `log` -> `tracing`
-  - [x] 4.5.12 Cleaning Up Instrumentation Code
+  - ~[ ] 4.5.14~ Uncessary because of axum's setup
 
 ### Warning
 
