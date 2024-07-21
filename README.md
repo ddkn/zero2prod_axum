@@ -15,6 +15,8 @@ Some notable changes include the following substitutions,
 - [x] 4. Telemetry
   - ~[ ] 4.1 to 4.2~ Unecessary since it migrates from `log` -> `tracing`
   - ~[ ] 4.5.14~ Uncessary because of axum's setup
+- [ ] 5. Going Live
+  - ~[ ] 5.3.7~ Using Sqlite so unecessary
 
 ### Warning
 

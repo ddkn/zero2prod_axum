@@ -49,9 +49,8 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 /// to be able to `.collect()` the body.
 #[tokio::test]
 async fn health_check_oneshot() {
-    let settings =
-        zero2prod_axum::settings::read_settings_file(Some("settings.toml"))
-            .expect("Failed to read settings file.");
+    let settings = zero2prod_axum::settings::read_settings_file(None)
+        .expect("Failed to read settings file.");
 
     let connection_str = settings
         .database
