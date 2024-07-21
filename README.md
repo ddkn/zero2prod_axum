@@ -1,6 +1,6 @@
 # zero2prod_axum
 
-This is my journey of going through the book [Zero 2 Production 2e](https://www.zero2prod.com/) that uses [axum](https://docs.rs/axum/latest/axum/). My intention is to learn axum due to being created by the [tokio](https://tokio.rs/) developers, and forcing myself to look at the docs versus what is verbatim in the book. I may end this prematurely, depending on how comfortable I become with [rust](https://www.rust-lang.org) development. If I do, I will indicate below.
+This is my journey of going through the book [Zero 2 Production 2e](https://www.zero2prod.com/). However, I am translating the work from [actix](https://actix.rs/) which the book uses to my desired framework [axum](https://docs.rs/axum/latest/axum/). My intention is to learn axum due to being created by the [tokio](https://tokio.rs/) developers, and forcing myself to look at the docs versus what is verbatim in the book. I may end this prematurely, depending on how comfortable I become with [rust](https://www.rust-lang.org) development. If I do, I will indicate below.
 
 Some notable changes include the following substitutions,
 
