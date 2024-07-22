@@ -84,6 +84,20 @@ Options:
   -h, --help                 Print help
 ```
 
+### Docker
+
+Build the docker image
+
+```
+docker build -t z2pa -f docker/Dockerfile .
+```
+
+Run the image and let's say port 9000 is already busy on the host,
+
+```
+docker run -p 9001:9000 z2pa
+```
+
 #### Settings
 
 The settings file (settings.toml) is currently organized as such for a sqlite database.
