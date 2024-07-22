@@ -15,8 +15,9 @@ Some notable changes include the following substitutions,
 - [x] 4. Telemetry
   - ~[ ] 4.1 to 4.2~ Unecessary since it migrates from `log` -> `tracing`
   - ~[ ] 4.5.14~ Uncessary because of axum's setup
-- [ ] 5. Going Live
+- [x] 5. Going Live
   - ~[ ] 5.3.7~ Using Sqlite so unecessary
+  - ~[ ] 5.4~ Not deploying to digital ocean, not implementing secrets due to extra code for toml
 
 ### Warning
 
@@ -95,7 +96,7 @@ docker build -t z2pa -f docker/Dockerfile .
 Run the image and let's say port 9000 is already busy on the host,
 
 ```
-docker run -p 9001:9000 z2pa
+docker run -e RUST_LOG=debug -p 9001:9000 z2pa
 ```
 
 #### Settings
