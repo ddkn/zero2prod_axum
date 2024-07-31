@@ -50,7 +50,8 @@ pub async fn subscriptions(
 ) -> impl IntoResponse {
     let new_subscriber = NewSubscriber {
         email: sign_up.email,
-        name: SubscriberName::parse(sign_up.name),
+        name: SubscriberName::parse(sign_up.name)
+            .expect("Name validation failed!"),
     };
     match insert_subscriber(Extension(pool), &new_subscriber).await {
         Ok(_) => StatusCode::OK,
@@ -69,7 +70,7 @@ pub async fn insert_subscriber(
     let uuid = Uuid::new_v4().to_string();
     let current_time = get_current_utc_timestamp();
 
-    let subscriber_name = new_subscriber.name.inner_ref();
+    let subscriber_name = new_subscriber.name.as_ref();
     sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)

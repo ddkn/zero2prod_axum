@@ -155,7 +155,9 @@ async fn subscribe_returns_400_for_missing_form_data() {
 
     let test_cases = vec![
         ("name=bird%20and%20boy", "missing the e-mail"),
+        //("name=bird%20and%20boy&email=", "missing the e-mail"),
         ("email=bb%40example.com", "missing the name"),
+        ("email=bb%40example.com&name=", "missing the name"),
         ("", "missing both name and email"),
     ];
 

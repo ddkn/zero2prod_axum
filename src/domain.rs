@@ -8,7 +8,7 @@ pub struct NewSubscriber {
 pub struct SubscriberName(String);
 
 impl SubscriberName {
-    pub fn parse(s: String) -> SubscriberName {
+    pub fn parse(s: String) -> Result<SubscriberName, String> {
         let is_empty_or_whitespace = s.trim().is_empty();
 
         // Grapheme is defined by the unicode standard as a "user-percieved"
@@ -31,12 +31,12 @@ impl SubscriberName {
             panic!("{} is not a valid subscriber name", s);
         }
 
-        Self(s)
+        Ok(Self(s))
     }
-    pub fn inner_ref(&self) -> &str {
-        // The caller gets a shared reference to the inner string.
-        // This gives the caller **read-only** access,
-        // they have no way to compromise our invariants!
+}
+
+impl AsRef<str> for SubscriberName {
+    fn as_ref(&self) -> &str {
         &self.0
     }
 }
