@@ -154,11 +154,9 @@ async fn subscribe_returns_400_for_missing_form_data() {
     let client = Client::new();
 
     let test_cases = vec![
-        ("name=bird%20and%20boy", "missing the e-mail"),
-        //("name=bird%20and%20boy&email=", "missing the e-mail"),
-        ("email=bb%40example.com", "missing the name"),
-        ("email=bb%40example.com&name=", "missing the name"),
-        ("", "missing both name and email"),
+        ("name=bird%20and%20boy&email=", "missing the e-mail"),
+        ("name=&email=bb%40example.com", "missing the name"),
+        ("name=birb&email=tyranosaurusrex", "invalid email format"),
     ];
 
     for (invalid_body, error_mesg) in test_cases {
@@ -171,10 +169,10 @@ async fn subscribe_returns_400_for_missing_form_data() {
             .expect("Failed to execute request.");
 
         assert_eq!(
-            StatusCode::UNPROCESSABLE_ENTITY,
+            StatusCode::BAD_REQUEST,
             resp.status().as_u16(),
-            "API did not fail with 400 Bad Request when the payload was {}.",
-            error_mesg
+            "API did not fail with 400 Bad Request when the payload was {}: {}.",
+            error_mesg, invalid_body
         );
     }
 

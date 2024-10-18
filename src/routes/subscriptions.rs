@@ -18,7 +18,7 @@
 
 //! src/routes/subscriptions.rs
 
-use crate::domain::{NewSubscriber, SubscriberName};
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use axum::{http::StatusCode, response::IntoResponse, Extension, Form};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -48,14 +48,18 @@ pub async fn subscriptions(
     Extension(pool): Extension<SqlitePool>,
     Form(sign_up): Form<SignUp>,
 ) -> impl IntoResponse {
-    let new_subscriber = NewSubscriber {
-        email: sign_up.email,
-        name: SubscriberName::parse(sign_up.name)
-            .expect("Name validation failed!"),
+    let name = match SubscriberName::parse(sign_up.name) {
+        Ok(name) => name,
+        Err(_) => return StatusCode::BAD_REQUEST,
     };
+    let email = match SubscriberEmail::parse(sign_up.email) {
+        Ok(email) => email,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+    let new_subscriber = NewSubscriber { email, name };
     match insert_subscriber(Extension(pool), &new_subscriber).await {
         Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
+        Err(_) => StatusCode::BAD_REQUEST,
     }
 }
 
@@ -71,13 +75,14 @@ pub async fn insert_subscriber(
     let current_time = get_current_utc_timestamp();
 
     let subscriber_name = new_subscriber.name.as_ref();
+    let subscriber_email = new_subscriber.email.as_ref();
     sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)
         VALUES ($1, $2, $3, $4)
         "#,
         uuid,
-        new_subscriber.email,
+        subscriber_email,
         subscriber_name,
         current_time
     )

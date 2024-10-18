@@ -32,6 +32,7 @@ uuid = { version = "1.8.0", features = ["v4"] }
 secrecy = { version = "0.8.0", features = ["serde"] }
 unicode-segmentation = "1.11.0"
 claims = "0.7.1"
+validator = "0.18.1"
 
 [dev-dependencies]
 axum = "0.7.5"
