@@ -34,6 +34,9 @@ unicode-segmentation = "1.11.0"
 claims = "0.7.1"
 validator = "0.18.1"
 fake = "2.10.0"
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
+rand = "0.8.5"
 
 [dev-dependencies]
 axum = "0.7.5"
@@ -42,6 +45,3 @@ once_cell = "1.19.0"
 reqwest = "0.12.4"
 tokio = "1.37.0"
 tower = "0.4.13"
-
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "linker=clang", "-C", "link-arg=-fuse-ld=lld"]
