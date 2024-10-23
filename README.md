@@ -18,8 +18,8 @@ Some notable changes include the following substitutions,
 - [x] 5. Going Live
   - ~[ ] 5.3.7~ Using Sqlite so unecessary
   - ~[ ] 5.4~ Not deploying to digital ocean, not implementing secrets due to extra code for toml
-- [ ] 6. Reject Invalid Subscribers #1
-  - [x] 6.13 Property-based Testing
+- [x] 6. Reject Invalid Subscribers #1
+- [ ] 7. Reject Invalid Subscribers #2
 
 ### Warning
 

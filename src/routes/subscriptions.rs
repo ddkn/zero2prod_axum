@@ -31,15 +31,19 @@ pub struct SignUp {
     email: String,
 }
 
+impl TryFrom<SignUp> for NewSubscriber {
+    type Error = String;
+
+    fn try_from(value: SignUp) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
+        Ok(NewSubscriber { email, name })
+    }
+}
+
 fn get_current_utc_timestamp() -> String {
     let now: DateTime<Utc> = Utc::now();
     now.format("%Y-%m-%d %H:%M:%S").to_string()
-}
-
-pub fn parse_subscriber(sign_up: SignUp) -> Result<NewSubscriber, String> {
-    let name = SubscriberName::parse(sign_up.name)?;
-    let email = SubscriberEmail::parse(sign_up.email)?;
-    Ok(NewSubscriber { email, name })
 }
 
 #[tracing::instrument(
@@ -54,7 +58,7 @@ pub async fn subscriptions(
     Extension(pool): Extension<SqlitePool>,
     Form(sign_up): Form<SignUp>,
 ) -> impl IntoResponse {
-    let new_subscriber = match parse_subscriber(sign_up) {
+    let new_subscriber = match sign_up.try_into() {
         Ok(subscriber) => subscriber,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
