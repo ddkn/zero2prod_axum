@@ -36,6 +36,12 @@ fn get_current_utc_timestamp() -> String {
     now.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
+pub fn parse_subscriber(sign_up: SignUp) -> Result<NewSubscriber, String> {
+    let name = SubscriberName::parse(sign_up.name)?;
+    let email = SubscriberEmail::parse(sign_up.email)?;
+    Ok(NewSubscriber { email, name })
+}
+
 #[tracing::instrument(
     name = "Adding a new subscriber",
     skip(sign_up, pool),
@@ -48,15 +54,11 @@ pub async fn subscriptions(
     Extension(pool): Extension<SqlitePool>,
     Form(sign_up): Form<SignUp>,
 ) -> impl IntoResponse {
-    let name = match SubscriberName::parse(sign_up.name) {
-        Ok(name) => name,
+    let new_subscriber = match parse_subscriber(sign_up) {
+        Ok(subscriber) => subscriber,
         Err(_) => return StatusCode::BAD_REQUEST,
     };
-    let email = match SubscriberEmail::parse(sign_up.email) {
-        Ok(email) => email,
-        Err(_) => return StatusCode::BAD_REQUEST,
-    };
-    let new_subscriber = NewSubscriber { email, name };
+
     match insert_subscriber(Extension(pool), &new_subscriber).await {
         Ok(_) => StatusCode::OK,
         Err(_) => StatusCode::BAD_REQUEST,
