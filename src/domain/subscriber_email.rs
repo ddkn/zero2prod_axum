@@ -22,10 +22,9 @@ impl AsRef<str> for SubscriberEmail {
 #[cfg(test)]
 mod tests {
     use super::SubscriberEmail;
-    use claims::assert_err;
-    // use fake::faker::internet::en::SafeEmail;
-    use fake::locales::{self, Data};
-    use quickcheck::{Arbitrary, Gen};
+    use crate::test_utils::test_utils::ValidEmailFixture;
+    use claims::{assert_err, assert_ok};
+    use proptest::prelude::*;
 
     #[test]
     fn empty_string_is_rejected() {
@@ -45,28 +44,13 @@ mod tests {
         assert_err!(SubscriberEmail::parse(email));
     }
 
-    #[derive(Debug, Clone)]
-    struct ValidEmailFixture(pub String);
-
-    // Required because `quickcheck` no longer uses `RngCore` for `Gen`
-    // Github issue [#265](https://github.com/BurntSushi/quickcheck/pull/265)
-    // PS quickcheck seems unmaintained, switch to proptest
-    impl Arbitrary for ValidEmailFixture {
-        fn arbitrary(g: &mut Gen) -> Self {
-            let username = g
-                .choose(locales::EN::NAME_FIRST_NAME)
-                .unwrap()
-                .to_lowercase();
-            let domain = g.choose(&["com", "net", "org"]).unwrap();
-            let email = format!("{username}@example.{domain}");
-            Self(email)
+    proptest! {
+        #[test]
+        fn valid_emails_are_parsed_successfully(
+            valid_email in any::<ValidEmailFixture>()
+        ) {
+            let valid_email_ref = valid_email.as_ref();
+            assert_ok!(SubscriberEmail::parse(valid_email_ref.to_string()));
         }
-    }
-
-    #[quickcheck_macros::quickcheck]
-    fn valid_emails_are_parsed_successfully(
-        valid_email: ValidEmailFixture,
-    ) -> bool {
-        SubscriberEmail::parse(valid_email.0).is_ok()
     }
 }
