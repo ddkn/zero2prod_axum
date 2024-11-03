@@ -16,10 +16,13 @@ use std::net::SocketAddr;
 use std::{fs::remove_file, str::FromStr};
 use tower::ServiceExt;
 use uuid::Uuid;
+use zero2prod_axum::{domain::SubscriberEmail, email_client::EmailClient};
 
 const ADDR: &str = "127.0.0.1";
 /// Bind to port 0 which causes the OS to hunt for an available port.
 const PORT: u16 = 0;
+const BASE_URL: &str = "localhost";
+const SENDER_EMAIL: &str = "test@example.com";
 
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
@@ -62,8 +65,13 @@ async fn health_check_oneshot() {
         .connect(&connection_str)
         .await
         .expect("Failed to create database pool.");
+    let sender = settings
+        .email_client
+        .sender()
+        .expect("Invalid sender email address");
+    let email_client = EmailClient::new(settings.email_client.base_url, sender);
 
-    let app = zero2prod_axum::startup::app(pool);
+    let app = zero2prod_axum::startup::app(pool, email_client);
 
     let resp = app
         .oneshot(
@@ -200,9 +208,12 @@ async fn spawn_app() -> (SocketAddr, String) {
     let bind_addr = format!("{}:{}", addr, port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
     let addr = listener.local_addr().unwrap();
+    let sender_email = SubscriberEmail::parse(SENDER_EMAIL.to_string())
+        .expect("Invalid sender email!");
+    let email_client = EmailClient::new(BASE_URL.to_string(), sender_email);
 
     let _ = tokio::spawn(async move {
-        axum::serve(listener, zero2prod_axum::startup::app(pool))
+        axum::serve(listener, zero2prod_axum::startup::app(pool, email_client))
             .await
             .unwrap();
     });

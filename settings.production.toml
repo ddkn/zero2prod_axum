@@ -3,3 +3,7 @@ port = 9000
 
 [database]
 name = "demo.db"
+
+[email_client]
+base_url = "https://api.postmarkapp.com"
+sender_email = "postmark.radiated911@passfwd.com"

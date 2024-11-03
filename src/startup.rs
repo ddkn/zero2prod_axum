@@ -18,6 +18,7 @@
 
 //! src/startup.rs
 
+use crate::email_client::EmailClient;
 use crate::routes::{health_check, subscriptions};
 use axum::{
     http::Request,
@@ -25,7 +26,9 @@ use axum::{
     Extension, Router,
 };
 use clap::Parser;
+use reqwest::Client;
 use sqlx::SqlitePool;
+use std::sync::Arc;
 // use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_http::trace::TraceLayer;
 use tracing::Level;
@@ -46,7 +49,9 @@ pub struct Cli {
     pub ignore_settings: bool,
 }
 
-pub fn app(pool: SqlitePool) -> Router {
+pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
+    // wrap client in Arc for multiple handlers
+    let shared_client = Arc::new(email_client);
     // Define single routes for now
     Router::new()
         .route(
@@ -58,6 +63,10 @@ pub fn app(pool: SqlitePool) -> Router {
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscriptions))
         .layer(Extension(pool))
+        // Use Extension to add the Arc<Reqwest::Client>
+        // if using multiple Reqwest::Client, then order matters
+        // or wrap in a unique struct, e.g., struct ClientA(Client)
+        .layer(Extension(shared_client))
         .layer(TraceLayer::new_for_http().make_span_with(
             |request: &Request<_>| {
                 let request_id = uuid::Uuid::new_v4().to_string();

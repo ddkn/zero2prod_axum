@@ -18,6 +18,7 @@
 
 //! src/settings.rs
 
+use crate::domain::SubscriberEmail;
 use serde::Deserialize;
 use std::fs;
 // See p.122 in book for using Secret with postgres and passwords.
@@ -33,6 +34,7 @@ pub struct AppSettings {
     pub addr: String,
     pub port: u16,
     pub database: DatabaseSettings,
+    pub email_client: EmailClientSettings,
 }
 
 /// DatabaseSettings
@@ -51,6 +53,18 @@ pub struct DatabaseSettings {
 impl DatabaseSettings {
     pub fn connection_string(&self) -> Secret<String> {
         Secret::new(format!("sqlite://{}", self.name))
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+}
+
+impl EmailClientSettings {
+    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+        SubscriberEmail::parse(self.sender_email.clone())
     }
 }
 

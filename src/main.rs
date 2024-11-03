@@ -34,6 +34,8 @@ use secrecy::ExposeSecret;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 use zero2prod_axum::{
+    domain::SubscriberEmail,
+    email_client::EmailClient,
     settings,
     startup::{app, Cli},
     telemetry::{get_subscriber, init_subscriber},
@@ -54,10 +56,16 @@ async fn main() {
 
     let bind_addr: String;
     let connection_str: String;
+    let email_client: EmailClient;
     if ignore_settings {
         bind_addr = format!("{}:{}", addr, port);
         // Naive way to create a binded address
         connection_str = "sqlite:demo.db".to_string();
+        let base_url = "http://localhost/api".to_string();
+        let subscriber_email =
+            SubscriberEmail::parse("test@gmail.com".to_string())
+                .expect("Invalid sender email!");
+        email_client = EmailClient::new(base_url, subscriber_email);
     } else {
         let app_settings =
             settings::read_settings_file(settings_file.as_deref())
@@ -71,6 +79,13 @@ async fn main() {
             .to_string();
         // Naive way to create a binded address
         bind_addr = format!("{}:{}", addr, port);
+
+        let sender = app_settings
+            .email_client
+            .sender()
+            .expect("Invalid sender email!");
+        email_client =
+            EmailClient::new(app_settings.email_client.base_url, sender);
     }
 
     let conn_opt = SqliteConnectOptions::from_str(&connection_str)
@@ -85,5 +100,7 @@ async fn main() {
     tracing::info!("Listening on {}", port);
     // Run app using hyper while listening onto the configured port
     let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
-    axum::serve(listener, app(pool)).await.unwrap();
+    axum::serve(listener, app(pool, email_client))
+        .await
+        .unwrap();
 }
