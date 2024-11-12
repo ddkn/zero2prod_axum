@@ -7,3 +7,4 @@ name = "demo.db"
 [email_client]
 base_url = "https://api.postmarkapp.com"
 sender_email = "postmark.radiated911@passfwd.com"
+authorization_token = "my-secret-token"

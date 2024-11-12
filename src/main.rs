@@ -30,7 +30,7 @@
 //! * Allow authors to send emails to subscribers
 
 use clap::Parser;
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, Secret};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 use zero2prod_axum::{
@@ -56,6 +56,7 @@ async fn main() {
 
     let bind_addr: String;
     let connection_str: String;
+    let authorization_token: Secret<String>;
     let email_client: EmailClient;
     if ignore_settings {
         bind_addr = format!("{}:{}", addr, port);
@@ -65,7 +66,11 @@ async fn main() {
         let subscriber_email =
             SubscriberEmail::parse("test@gmail.com".to_string())
                 .expect("Invalid sender email!");
-        email_client = EmailClient::new(base_url, subscriber_email);
+        email_client = EmailClient::new(
+            base_url,
+            subscriber_email,
+            Secret::new("my-secret-token".to_string()),
+        );
     } else {
         let app_settings =
             settings::read_settings_file(settings_file.as_deref())
@@ -84,8 +89,11 @@ async fn main() {
             .email_client
             .sender()
             .expect("Invalid sender email!");
-        email_client =
-            EmailClient::new(app_settings.email_client.base_url, sender);
+        email_client = EmailClient::new(
+            app_settings.email_client.base_url,
+            sender,
+            app_settings.email_client.authorization_token,
+        );
     }
 
     let conn_opt = SqliteConnectOptions::from_str(&connection_str)

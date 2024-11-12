@@ -7,7 +7,7 @@ use axum::{
 use http_body_util::BodyExt;
 use once_cell::sync::Lazy;
 use reqwest::Client;
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, Secret};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions},
     Connection, SqliteConnection,
@@ -69,7 +69,11 @@ async fn health_check_oneshot() {
         .email_client
         .sender()
         .expect("Invalid sender email address");
-    let email_client = EmailClient::new(settings.email_client.base_url, sender);
+    let email_client = EmailClient::new(
+        settings.email_client.base_url,
+        sender,
+        settings.email_client.authorization_token,
+    );
 
     let app = zero2prod_axum::startup::app(pool, email_client);
 
@@ -210,7 +214,12 @@ async fn spawn_app() -> (SocketAddr, String) {
     let addr = listener.local_addr().unwrap();
     let sender_email = SubscriberEmail::parse(SENDER_EMAIL.to_string())
         .expect("Invalid sender email!");
-    let email_client = EmailClient::new(BASE_URL.to_string(), sender_email);
+    let authorization_token = Secret::new("my-secret-token".to_string());
+    let email_client = EmailClient::new(
+        BASE_URL.to_string(),
+        sender_email,
+        authorization_token,
+    );
 
     let _ = tokio::spawn(async move {
         axum::serve(listener, zero2prod_axum::startup::app(pool, email_client))

@@ -26,7 +26,6 @@ use axum::{
     Extension, Router,
 };
 use clap::Parser;
-use reqwest::Client;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 // use tower::{Service, ServiceBuilder, ServiceExt};
