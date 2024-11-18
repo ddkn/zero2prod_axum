@@ -69,10 +69,12 @@ async fn health_check_oneshot() {
         .email_client
         .sender()
         .expect("Invalid sender email address");
+    let timeout = settings.email_client.timeout();
     let email_client = EmailClient::new(
         settings.email_client.base_url,
         sender,
         settings.email_client.authorization_token,
+        timeout,
     );
 
     let app = zero2prod_axum::startup::app(pool, email_client);
@@ -207,6 +209,7 @@ async fn spawn_app() -> (SocketAddr, String) {
         .expect("Unable to create test database");
 
     // Tests require us to use port 0 for random ports otherwise all but one fail
+    // TODO: Move params to a config file
     let port = PORT;
     let addr = ADDR;
     let bind_addr = format!("{}:{}", addr, port);
@@ -215,10 +218,12 @@ async fn spawn_app() -> (SocketAddr, String) {
     let sender_email = SubscriberEmail::parse(SENDER_EMAIL.to_string())
         .expect("Invalid sender email!");
     let authorization_token = Secret::new("my-secret-token".to_string());
+    let timeout = std::time::Duration::from_millis(10000);
     let email_client = EmailClient::new(
         BASE_URL.to_string(),
         sender_email,
         authorization_token,
+        timeout,
     );
 
     let _ = tokio::spawn(async move {

@@ -56,7 +56,6 @@ async fn main() {
 
     let bind_addr: String;
     let connection_str: String;
-    let authorization_token: Secret<String>;
     let email_client: EmailClient;
     if ignore_settings {
         bind_addr = format!("{}:{}", addr, port);
@@ -66,10 +65,12 @@ async fn main() {
         let subscriber_email =
             SubscriberEmail::parse("test@gmail.com".to_string())
                 .expect("Invalid sender email!");
+        let timeout = std::time::Duration::from_millis(10000);
         email_client = EmailClient::new(
             base_url,
             subscriber_email,
             Secret::new("my-secret-token".to_string()),
+            timeout,
         );
     } else {
         let app_settings =
@@ -89,10 +90,12 @@ async fn main() {
             .email_client
             .sender()
             .expect("Invalid sender email!");
+        let timeout = app_settings.email_client.timeout();
         email_client = EmailClient::new(
             app_settings.email_client.base_url,
             sender,
             app_settings.email_client.authorization_token,
+            timeout,
         );
     }
 

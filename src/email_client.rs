@@ -14,11 +14,9 @@ impl EmailClient {
         base_url: String,
         sender: SubscriberEmail,
         authorization_token: Secret<String>,
+        timeout: std::time::Duration,
     ) -> Self {
-        let http_client = Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .unwrap();
+        let http_client = Client::builder().timeout(timeout).build().unwrap();
         Self {
             http_client,
             base_url,
@@ -99,22 +97,36 @@ mod tests {
         }
     }
 
+    fn subject() -> String {
+        Sentence(1..2).fake()
+    }
+
+    fn content() -> String {
+        Paragraph(1..10).fake()
+    }
+
+    fn email() -> SubscriberEmail {
+        let mut runner = TestRunner::default();
+        let strategy = ValidEmailFixture::arbitrary();
+        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
+        SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap()
+    }
+
+    fn email_client(base_url: String) -> EmailClient {
+        EmailClient::new(
+            base_url,
+            email(),
+            Secret::new(Faker.fake()),
+            std::time::Duration::from_millis(200),
+        )
+    }
+
     #[tokio::test]
     async fn send_email_sends_the_expected_request() {
         // Arange
         let mock_server = MockServer::start().await;
 
-        let mut runner = TestRunner::default();
-        let strategy = ValidEmailFixture::arbitrary();
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let sender =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-
-        let email_client = EmailClient::new(
-            mock_server.uri(),
-            sender,
-            Secret::new(Faker.fake()),
-        );
+        let email_client = email_client(mock_server.uri());
 
         Mock::given(header_exists("X-Postmark-Server-Token"))
             .and(header("Content-Type", "application/json"))
@@ -126,15 +138,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let subscriber_email =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-        let subject: String = Sentence(1..2).fake();
-        let content: String = Paragraph(1..10).fake();
-
         // Act
         let _ = email_client
-            .send_email(subscriber_email, &subject, &content, &content)
+            .send_email(email(), &subject(), &content(), &content())
             .await;
 
         // Assert
@@ -146,17 +152,7 @@ mod tests {
         // Arange
         let mock_server = MockServer::start().await;
 
-        let mut runner = TestRunner::default();
-        let strategy = ValidEmailFixture::arbitrary();
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let sender =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-
-        let email_client = EmailClient::new(
-            mock_server.uri(),
-            sender,
-            Secret::new(Faker.fake()),
-        );
+        let email_client = email_client(mock_server.uri());
 
         Mock::given(any())
             .respond_with(ResponseTemplate::new(200))
@@ -164,15 +160,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let subscriber_email =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-        let subject: String = Sentence(1..2).fake();
-        let content: String = Paragraph(1..10).fake();
-
         // Act
         let outcome = email_client
-            .send_email(subscriber_email, &subject, &content, &content)
+            .send_email(email(), &subject(), &content(), &content())
             .await;
 
         assert_ok!(outcome);
@@ -183,17 +173,7 @@ mod tests {
         // Arange
         let mock_server = MockServer::start().await;
 
-        let mut runner = TestRunner::default();
-        let strategy = ValidEmailFixture::arbitrary();
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let sender =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-
-        let email_client = EmailClient::new(
-            mock_server.uri(),
-            sender,
-            Secret::new(Faker.fake()),
-        );
+        let email_client = email_client(mock_server.uri());
 
         Mock::given(any())
             .respond_with(ResponseTemplate::new(500))
@@ -201,15 +181,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let subscriber_email =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-        let subject: String = Sentence(1..2).fake();
-        let content: String = Paragraph(1..10).fake();
-
         // Act
         let outcome = email_client
-            .send_email(subscriber_email, &subject, &content, &content)
+            .send_email(email(), &subject(), &content(), &content())
             .await;
 
         assert_err!(outcome);
@@ -220,17 +194,7 @@ mod tests {
         // Arange
         let mock_server = MockServer::start().await;
 
-        let mut runner = TestRunner::default();
-        let strategy = ValidEmailFixture::arbitrary();
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let sender =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-
-        let email_client = EmailClient::new(
-            mock_server.uri(),
-            sender,
-            Secret::new(Faker.fake()),
-        );
+        let email_client = email_client(mock_server.uri());
 
         let response = ResponseTemplate::new(200)
             .set_delay(std::time::Duration::from_secs(180));
@@ -241,15 +205,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
-        let subscriber_email =
-            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
-        let subject: String = Sentence(1..2).fake();
-        let content: String = Paragraph(1..10).fake();
-
         // Act
         let outcome = email_client
-            .send_email(subscriber_email, &subject, &content, &content)
+            .send_email(email(), &subject(), &content(), &content())
             .await;
 
         assert_err!(outcome);
