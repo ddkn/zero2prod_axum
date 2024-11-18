@@ -15,8 +15,12 @@ impl EmailClient {
         sender: SubscriberEmail,
         authorization_token: Secret<String>,
     ) -> Self {
+        let http_client = Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .unwrap();
         Self {
-            http_client: Client::new(),
+            http_client,
             base_url,
             sender,
             authorization_token,
@@ -46,7 +50,8 @@ impl EmailClient {
             )
             .json(&request_body)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         Ok(())
     }
 }
@@ -66,12 +71,13 @@ mod tests {
     use crate::domain::SubscriberEmail;
     use crate::email_client::EmailClient;
     use crate::test_utils::test_utils::ValidEmailFixture;
+    use claims::{assert_err, assert_ok};
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
     use proptest::prelude::*;
     use proptest::test_runner::TestRunner;
     use secrecy::Secret;
-    use wiremock::matchers::{header, header_exists, method, path};
+    use wiremock::matchers::{any, header, header_exists, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
     struct SendEmailBodyMatcher;
@@ -133,5 +139,119 @@ mod tests {
 
         // Assert
         // Mock expectations are checked on drop
+    }
+
+    #[tokio::test]
+    async fn send_email_succeeds_if_the_server_returns_200() {
+        // Arange
+        let mock_server = MockServer::start().await;
+
+        let mut runner = TestRunner::default();
+        let strategy = ValidEmailFixture::arbitrary();
+        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
+        let sender =
+            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
+
+        let email_client = EmailClient::new(
+            mock_server.uri(),
+            sender,
+            Secret::new(Faker.fake()),
+        );
+
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
+        let subscriber_email =
+            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
+        let subject: String = Sentence(1..2).fake();
+        let content: String = Paragraph(1..10).fake();
+
+        // Act
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        assert_ok!(outcome);
+    }
+
+    #[tokio::test]
+    async fn send_email_fails_if_the_server_returns_500() {
+        // Arange
+        let mock_server = MockServer::start().await;
+
+        let mut runner = TestRunner::default();
+        let strategy = ValidEmailFixture::arbitrary();
+        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
+        let sender =
+            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
+
+        let email_client = EmailClient::new(
+            mock_server.uri(),
+            sender,
+            Secret::new(Faker.fake()),
+        );
+
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
+        let subscriber_email =
+            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
+        let subject: String = Sentence(1..2).fake();
+        let content: String = Paragraph(1..10).fake();
+
+        // Act
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        assert_err!(outcome);
+    }
+
+    #[tokio::test]
+    async fn send_email_times_out_if_the_server_takes_too_long() {
+        // Arange
+        let mock_server = MockServer::start().await;
+
+        let mut runner = TestRunner::default();
+        let strategy = ValidEmailFixture::arbitrary();
+        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
+        let sender =
+            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
+
+        let email_client = EmailClient::new(
+            mock_server.uri(),
+            sender,
+            Secret::new(Faker.fake()),
+        );
+
+        let response = ResponseTemplate::new(200)
+            .set_delay(std::time::Duration::from_secs(180));
+
+        Mock::given(any())
+            .respond_with(response)
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let email_fixture = strategy.new_tree(&mut runner).unwrap().current();
+        let subscriber_email =
+            SubscriberEmail::parse(email_fixture.as_ref().to_string()).unwrap();
+        let subject: String = Sentence(1..2).fake();
+        let content: String = Paragraph(1..10).fake();
+
+        // Act
+        let outcome = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
+            .await;
+
+        assert_err!(outcome);
     }
 }
