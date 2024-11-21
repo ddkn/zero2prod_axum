@@ -3,9 +3,10 @@ use reqwest::Client;
 
 #[tokio::test]
 async fn health_check_success() {
-    let (addr, db_name) = spawn_app().await;
+    let app = spawn_app().await;
 
     let client = Client::new();
+    let addr = app.addr;
     let resp = client
         .get(format!("http://{addr}/health_check"))
         .send()
@@ -15,8 +16,8 @@ async fn health_check_success() {
     assert!(resp.status().is_success());
     assert_eq!(resp.content_length(), Some(0));
 
-    cleanup_test_db(db_name.clone()).await.expect(&format!(
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
         "Failure to delete test database {}",
-        db_name.as_str()
+        app.db_name.as_str()
     ));
 }

@@ -28,15 +28,25 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     }
 });
 
+pub struct TestDatabaseConnection {
+    pub db_name: String,
+    pub pool: SqlitePool,
+}
+
+pub struct TestApp {
+    pub addr: SocketAddr,
+    pub db_name: String,
+}
+
 /// spawn_app
 ///
 /// Spawn's the app, which can be replaced with decoupled backend, for
 /// example, Django. This allows us to change the backend implementation
 /// but still use the testing pipline here as needed.
-pub async fn spawn_app() -> (SocketAddr, String) {
+pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
-    let (pool, db_name) = create_connect_test_db()
+    let db_conn = create_connect_test_db()
         .await
         .expect("Unable to create test database");
 
@@ -64,15 +74,22 @@ pub async fn spawn_app() -> (SocketAddr, String) {
     let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
     let addr = listener.local_addr().unwrap();
     let _ = tokio::spawn(async move {
-        axum::serve(listener, zero2prod_axum::startup::app(pool, email_client))
-            .await
-            .unwrap();
+        axum::serve(
+            listener,
+            zero2prod_axum::startup::app(db_conn.pool, email_client),
+        )
+        .await
+        .unwrap();
     });
 
-    (addr, db_name)
+    TestApp {
+        addr,
+        db_name: db_conn.db_name,
+    }
 }
 
-async fn create_connect_test_db() -> Result<(SqlitePool, String), sqlx::Error> {
+async fn create_connect_test_db() -> Result<TestDatabaseConnection, sqlx::Error>
+{
     let uuid_name = Uuid::new_v4();
     let db_name = format!("{}.db", uuid_name);
     let db_path = format!("sqlite://{}", db_name);
@@ -91,7 +108,7 @@ async fn create_connect_test_db() -> Result<(SqlitePool, String), sqlx::Error> {
         .await
         .expect("Failed to migrate the database");
 
-    Ok((pool, db_name))
+    Ok(TestDatabaseConnection { db_name, pool })
 }
 
 pub async fn cleanup_test_db(db_name: String) -> Result<(), sqlx::Error> {

@@ -8,16 +8,16 @@ use sqlx::{Connection, SqliteConnection};
 /// Checks for status code 200
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_form_data() {
-    let (addr, db_name) = spawn_app().await;
+    let app = spawn_app().await;
 
-    let mut connection = SqliteConnection::connect(&db_name)
+    let mut connection = SqliteConnection::connect(&app.db_name)
         .await
         .expect("Failed to connect to database.");
 
     let client = Client::new();
 
     let body = "name=bird%20and%20boy&email=bnb@example.com";
-
+    let addr = app.addr;
     let resp = client
         .post(&format!("http://{addr}/subscriptions"))
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -36,9 +36,9 @@ async fn subscribe_returns_200_for_valid_form_data() {
     assert_eq!(saved.email, "bnb@example.com");
     assert_eq!(saved.name, "bird and boy");
 
-    cleanup_test_db(db_name.clone()).await.expect(&format!(
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
         "Failure to delete test database {}",
-        db_name.as_str()
+        app.db_name.as_str()
     ));
 }
 
@@ -49,7 +49,7 @@ async fn subscribe_returns_200_for_valid_form_data() {
 /// returns a status code of 400.
 #[tokio::test]
 async fn subscribe_returns_400_for_missing_form_data() {
-    let (addr, db_name) = spawn_app().await;
+    let app = spawn_app().await;
     let client = Client::new();
 
     let test_cases = vec![
@@ -58,6 +58,7 @@ async fn subscribe_returns_400_for_missing_form_data() {
         ("name=birb&email=tyranosaurusrex", "invalid email format"),
     ];
 
+    let addr = app.addr;
     for (invalid_body, error_mesg) in test_cases {
         let resp = client
             .post(&format!("http://{addr}/subscriptions"))
@@ -75,8 +76,8 @@ async fn subscribe_returns_400_for_missing_form_data() {
         );
     }
 
-    cleanup_test_db(db_name.clone()).await.expect(&format!(
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
         "Failure to delete test database {}",
-        db_name.as_str()
+        app.db_name.as_str()
     ));
 }
