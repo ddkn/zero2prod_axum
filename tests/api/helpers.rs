@@ -38,6 +38,19 @@ pub struct TestApp {
     pub db_name: String,
 }
 
+impl TestApp {
+    pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
+        let addr = self.addr;
+        reqwest::Client::new()
+            .post(&format!("http://{addr}/subscriptions"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+}
+
 /// spawn_app
 ///
 /// Spawn's the app, which can be replaced with decoupled backend, for
