@@ -29,15 +29,15 @@
 //! * Send newsletter to subscribers
 //! * Allow authors to send emails to subscribers
 
-use clap::Parser;
-use secrecy::{ExposeSecret, Secret};
+use axum::Router;
+use secrecy::ExposeSecret;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
+use tokio::net::TcpListener;
 use zero2prod_axum::{
-    domain::SubscriberEmail,
     email_client::EmailClient,
-    settings,
-    startup::{app, Cli},
+    settings::{read_settings_file, AppSettings},
+    startup::app,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -47,57 +47,29 @@ async fn main() {
         get_subscriber("zero2prod_axum".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
 
-    let cli = Cli::parse();
+    let app_settings =
+        read_settings_file().expect("Failed to read settings file.");
+    let addr = app_settings.addr;
+    let port = app_settings.port;
+    let connection_str = app_settings
+        .database
+        .connection_string()
+        .expose_secret()
+        .to_string();
+    // Naive way to create a binded address
+    let bind_addr = format!("{}:{}", addr, port);
 
-    let addr = cli.addr;
-    let port = cli.port.to_string();
-    let settings_file = cli.settings;
-    let ignore_settings = cli.ignore_settings;
-
-    let bind_addr: String;
-    let connection_str: String;
-    let email_client: EmailClient;
-    if ignore_settings {
-        bind_addr = format!("{}:{}", addr, port);
-        // Naive way to create a binded address
-        connection_str = "sqlite:demo.db".to_string();
-        let base_url = "http://localhost/api".to_string();
-        let subscriber_email =
-            SubscriberEmail::parse("test@gmail.com".to_string())
-                .expect("Invalid sender email!");
-        let timeout = std::time::Duration::from_millis(10000);
-        email_client = EmailClient::new(
-            base_url,
-            subscriber_email,
-            Secret::new("my-secret-token".to_string()),
-            timeout,
-        );
-    } else {
-        let app_settings =
-            settings::read_settings_file(settings_file.as_deref())
-                .expect("Failed to read settings file.");
-        let addr = app_settings.addr;
-        let port = app_settings.port;
-        connection_str = app_settings
-            .database
-            .connection_string()
-            .expose_secret()
-            .to_string();
-        // Naive way to create a binded address
-        bind_addr = format!("{}:{}", addr, port);
-
-        let sender = app_settings
-            .email_client
-            .sender()
-            .expect("Invalid sender email!");
-        let timeout = app_settings.email_client.timeout();
-        email_client = EmailClient::new(
-            app_settings.email_client.base_url,
-            sender,
-            app_settings.email_client.authorization_token,
-            timeout,
-        );
-    }
+    let sender = app_settings
+        .email_client
+        .sender()
+        .expect("Invalid sender email!");
+    let timeout = app_settings.email_client.timeout();
+    let email_client = EmailClient::new(
+        app_settings.email_client.base_url,
+        sender,
+        app_settings.email_client.authorization_token,
+        timeout,
+    );
 
     let conn_opt = SqliteConnectOptions::from_str(&connection_str)
         .expect("Failed to create sqlite connection.")

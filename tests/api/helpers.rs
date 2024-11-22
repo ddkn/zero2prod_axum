@@ -51,7 +51,7 @@ pub async fn spawn_app() -> TestApp {
         .expect("Unable to create test database");
 
     let app_settings =
-        read_settings_file(None).expect("Failed to read settings file.");
+        read_settings_file().expect("Failed to read settings file.");
     let addr = app_settings.addr;
     // NOTE: Must bind to any available port, set to 0.
     // Otherwise all bound to same port and tests complain about used

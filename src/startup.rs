@@ -25,28 +25,11 @@ use axum::{
     routing::{get, post},
     Extension, Router,
 };
-use clap::Parser;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 // use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_http::trace::TraceLayer;
 use tracing::Level;
-
-#[derive(Parser)]
-pub struct Cli {
-    /// ip address
-    #[clap(short, long, default_value = "127.0.0.1")]
-    pub addr: String,
-    /// ip port
-    #[clap(short, long, default_value_t = 9000)]
-    pub port: u16,
-    /// settings file
-    #[clap(short, long)]
-    pub settings: Option<String>,
-    /// override settings file
-    #[clap(short, long, action = clap::ArgAction::SetTrue)]
-    pub ignore_settings: bool,
-}
 
 pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
     // wrap client in Arc for multiple handlers

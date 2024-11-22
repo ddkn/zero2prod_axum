@@ -104,15 +104,12 @@ impl TryFrom<String> for Environment {
     }
 }
 
-pub fn read_settings_file(
-    path: Option<&str>,
-) -> Result<AppSettings, toml::de::Error> {
+pub fn read_settings_file() -> Result<AppSettings, toml::de::Error> {
     let env: Environment = std::env::var("APP_ENV")
         .unwrap_or_else(|_| "local".into())
         .try_into()
         .expect("Failed to parse APP_ENV.");
-    let default_filename = format!("./settings.{}.toml", env.as_str());
-    let filename = path.unwrap_or(&default_filename);
+    let filename = format!("./settings.{}.toml", env.as_str());
     let toml_str = fs::read_to_string(filename).unwrap();
     let settings: AppSettings = toml::from_str(&toml_str)?;
     Ok(settings)
