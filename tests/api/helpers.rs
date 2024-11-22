@@ -3,8 +3,8 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::net::SocketAddr;
 use std::{fs::remove_file, str::FromStr};
 use uuid::Uuid;
-use zero2prod_axum::email_client::EmailClient;
 use zero2prod_axum::settings::read_settings_file;
+use zero2prod_axum::startup::Application;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
@@ -50,36 +50,23 @@ pub async fn spawn_app() -> TestApp {
         .await
         .expect("Unable to create test database");
 
-    let app_settings =
+    let mut app_settings =
         read_settings_file().expect("Failed to read settings file.");
-    let addr = app_settings.addr;
+    app_settings.database.name = db_conn.db_name.clone();
     // NOTE: Must bind to any available port, set to 0.
     // Otherwise all bound to same port and tests complain about used
     // port number.
-    let port = 0u16;
+    app_settings.port = 0u16;
 
-    let sender = app_settings
-        .email_client
-        .sender()
-        .expect("Invalid sender email!");
-    let timeout = app_settings.email_client.timeout();
-    let email_client = EmailClient::new(
-        app_settings.email_client.base_url,
-        sender,
-        app_settings.email_client.authorization_token,
-        timeout,
-    );
-    // Tests require us to use port 0 for random ports otherwise all but one fail
-    let bind_addr = format!("{}:{}", addr, port);
-    let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let app = Application::build(app_settings.clone()).await.unwrap();
+    // let addr = listener.local_addr().unwrap();
+    let addr = app.address();
     let _ = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            zero2prod_axum::startup::app(db_conn.pool, email_client),
-        )
-        .await
-        .unwrap();
+        // axum::serve(
+        //     listener,
+        //     zero2prod_axum::startup::app(db_conn.pool, email_client),
+        // )
+        app.run_until_stopped().await
     });
 
     TestApp {

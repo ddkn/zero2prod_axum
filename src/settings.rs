@@ -29,7 +29,7 @@ use secrecy::Secret;
 /// AppSettings
 ///
 /// This controls the settings for the app itself.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct AppSettings {
     pub addr: String,
     pub port: u16,
@@ -42,7 +42,7 @@ pub struct AppSettings {
 /// This controls the settings for the Databse. Since we are using
 /// `sqlite` we only need the database name. Otherwise we would put all
 /// the database connection information here.
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DatabaseSettings {
     pub name: String,
     // We need to use the `secrey::ExposeSecret`
@@ -56,7 +56,7 @@ impl DatabaseSettings {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,

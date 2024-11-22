@@ -29,61 +29,22 @@
 //! * Send newsletter to subscribers
 //! * Allow authors to send emails to subscribers
 
-use axum::Router;
-use secrecy::ExposeSecret;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use std::str::FromStr;
-use tokio::net::TcpListener;
 use zero2prod_axum::{
-    email_client::EmailClient,
-    settings::{read_settings_file, AppSettings},
-    startup::app,
+    settings::read_settings_file,
+    startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), std::io::Error> {
     let subscriber =
         get_subscriber("zero2prod_axum".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
 
     let app_settings =
         read_settings_file().expect("Failed to read settings file.");
-    let addr = app_settings.addr;
-    let port = app_settings.port;
-    let connection_str = app_settings
-        .database
-        .connection_string()
-        .expose_secret()
-        .to_string();
-    // Naive way to create a binded address
-    let bind_addr = format!("{}:{}", addr, port);
 
-    let sender = app_settings
-        .email_client
-        .sender()
-        .expect("Invalid sender email!");
-    let timeout = app_settings.email_client.timeout();
-    let email_client = EmailClient::new(
-        app_settings.email_client.base_url,
-        sender,
-        app_settings.email_client.authorization_token,
-        timeout,
-    );
-
-    let conn_opt = SqliteConnectOptions::from_str(&connection_str)
-        .expect("Failed to create sqlite connection.")
-        .create_if_missing(true);
-    let pool = SqlitePoolOptions::new()
-        .max_connections(10)
-        .connect_with(conn_opt)
-        .await
-        .expect("Failed to create database pool.");
-
-    tracing::info!("Listening on {}", port);
-    // Run app using hyper while listening onto the configured port
-    let listener = tokio::net::TcpListener::bind(bind_addr).await.unwrap();
-    axum::serve(listener, app(pool, email_client))
-        .await
-        .unwrap();
+    let app = Application::build(app_settings).await?;
+    app.run_until_stopped().await?;
+    Ok(())
 }

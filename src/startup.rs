@@ -20,16 +20,30 @@
 
 use crate::email_client::EmailClient;
 use crate::routes::{health_check, subscriptions};
+use crate::settings::AppSettings;
 use axum::{
     http::Request,
     routing::{get, post},
     Extension, Router,
 };
-use sqlx::SqlitePool;
+use secrecy::ExposeSecret;
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    SqlitePool,
+};
+use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 // use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_http::trace::TraceLayer;
 use tracing::Level;
+
+pub struct Application {
+    port: u16,
+    router: Router,
+    listener: TcpListener,
+}
 
 pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
     // wrap client in Arc for multiple handlers
@@ -63,4 +77,60 @@ pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
                 )
             },
         ))
+}
+
+impl Application {
+    pub async fn build(settings: AppSettings) -> Result<Self, std::io::Error> {
+        let addr = settings.addr;
+        let port = settings.port;
+        let connection_str = settings
+            .database
+            .connection_string()
+            .expose_secret()
+            .to_string();
+        // Naive way to create a binded address
+        let bind_addr = format!("{}:{}", addr, port);
+
+        let sender = settings
+            .email_client
+            .sender()
+            .expect("Invalid sender email!");
+        let timeout = settings.email_client.timeout();
+        let email_client = EmailClient::new(
+            settings.email_client.base_url,
+            sender,
+            settings.email_client.authorization_token,
+            timeout,
+        );
+
+        let conn_opt = SqliteConnectOptions::from_str(&connection_str)
+            .expect("Failed to create sqlite connection.")
+            .create_if_missing(true);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(10)
+            .connect_with(conn_opt)
+            .await
+            .expect("Failed to create database pool.");
+
+        // Run app using hyper while listening onto the configured port
+        tracing::info!("Listening on {}", port);
+        let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+        Ok(Self {
+            port,
+            router: app(pool, email_client),
+            listener,
+        })
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    pub fn address(&self) -> SocketAddr {
+        self.listener.local_addr().unwrap()
+    }
+
+    pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
+        axum::serve(self.listener, self.router).await
+    }
 }

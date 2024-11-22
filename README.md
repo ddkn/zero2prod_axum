@@ -20,7 +20,7 @@ Some notable changes include the following substitutions,
   - ~[ ] 5.4~ Not deploying to digital ocean, not implementing secrets due to extra code for toml
 - [x] 6. Reject Invalid Subscribers #1
 - [ ] 7. Reject Invalid Subscribers #2
-  - [x] 7.3.7 Sharing Test Helpers
+  - [ ] 7.3.9 Build An API Client
 
 ### Warning
 
@@ -75,17 +75,20 @@ RUST_LOG=trace cargo run
 
 ### Usage
 
-While there are command line options, the typcial configuration is expected to be in `settings.toml`.
+Specify the configuration in `settings.{local,production}.toml` file laid out as such:
 
 ```
-Usage: zero2prod_axum [OPTIONS]
+addr = "127.0.0.1"
+port = 9000
 
-Options:
-  -a, --addr <ADDR>          ip address [default: 127.0.0.1]
-  -p, --port <PORT>          ip port [default: 9000]
-  -s, --settings <SETTINGS>  settings file
-  -i, --ignore-settings      override settings file
-  -h, --help                 Print help
+[database]
+name = "demo.db"
+
+[email_client]
+base_url = "localhost"
+sender_email = "test@example.com"
+authorization_token = "my-secret-token"
+timeout_milliseconds = 10000
 ```
 
 ### Docker
