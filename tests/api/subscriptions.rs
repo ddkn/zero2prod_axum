@@ -11,6 +11,23 @@ use wiremock::{Mock, ResponseTemplate};
 async fn subscribe_returns_200_for_valid_form_data() {
     let app = spawn_app().await;
 
+    let body = "name=bird%20and%20boy&email=bnb@example.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
+    let resp = app.post_subscriptions(body.into()).await;
+
+    assert_eq!(StatusCode::OK, resp.status().as_u16());
+}
+
+#[tokio::test]
+async fn subscribe_persists_the_new_subscriber() {
+    let app = spawn_app().await;
+
     let mut connection = SqliteConnection::connect(&app.db_name)
         .await
         .expect("Failed to connect to database.");
@@ -23,22 +40,21 @@ async fn subscribe_returns_200_for_valid_form_data() {
         .mount(&app.email_server)
         .await;
 
-    let resp = app.post_subscriptions(body.into()).await;
+    app.post_subscriptions(body.into()).await;
 
-    assert_eq!(StatusCode::OK, resp.status().as_u16());
-
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
+    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
         .fetch_one(&mut connection)
         .await
         .expect("Failed to fetch saved subscription.");
 
     assert_eq!(saved.email, "bnb@example.com");
     assert_eq!(saved.name, "bird and boy");
+    assert_eq!(saved.status, "pending_confirmation");
 
-    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
-        "Failure to delete test database {}",
-        app.db_name.as_str()
-    ));
+    // cleanup_test_db(app.db_name.clone()).await.expect(&format!(
+    //     "Failure to delete test database {}",
+    //     app.db_name.as_str()
+    // ));
 }
 
 /// Subscribe missing data
