@@ -1,7 +1,8 @@
 use crate::helpers::{cleanup_test_db, spawn_app};
 use axum::http::StatusCode;
-use reqwest::Client;
 use sqlx::{Connection, SqliteConnection};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, ResponseTemplate};
 
 /// Subscribe valid data
 ///
@@ -15,6 +16,13 @@ async fn subscribe_returns_200_for_valid_form_data() {
         .expect("Failed to connect to database.");
 
     let body = "name=bird%20and%20boy&email=bnb@example.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
     let resp = app.post_subscriptions(body.into()).await;
 
     assert_eq!(StatusCode::OK, resp.status().as_u16());
@@ -95,4 +103,24 @@ async fn subscribe_returns_422_for_missing_form_fields() {
         "Failure to delete test database {}",
         app.db_name.as_str()
     ));
+}
+
+#[tokio::test]
+async fn subscribe_sends_a_confirmation_email_for_valid_data() {
+    // Arrange
+    let app = spawn_app().await;
+    let body = "name=le@20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    // Act
+    app.post_subscriptions(body.into()).await;
+
+    // Assert
+    // Mock asserts on drop
 }

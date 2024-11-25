@@ -3,6 +3,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::net::SocketAddr;
 use std::{fs::remove_file, str::FromStr};
 use uuid::Uuid;
+use wiremock::MockServer;
 use zero2prod_axum::settings::read_settings_file;
 use zero2prod_axum::startup::Application;
 
@@ -36,6 +37,7 @@ pub struct TestDatabaseConnection {
 pub struct TestApp {
     pub addr: SocketAddr,
     pub db_name: String,
+    pub email_server: MockServer,
 }
 
 impl TestApp {
@@ -63,13 +65,21 @@ pub async fn spawn_app() -> TestApp {
         .await
         .expect("Unable to create test database");
 
-    let mut app_settings =
-        read_settings_file().expect("Failed to read settings file.");
-    app_settings.database.name = db_conn.db_name.clone();
-    // NOTE: Must bind to any available port, set to 0.
-    // Otherwise all bound to same port and tests complain about used
-    // port number.
-    app_settings.port = 0u16;
+    let email_server = MockServer::start().await;
+
+    // Randomise configuration to ensure test isolation
+    // Neat, mut struct inside scope to a read-only variable
+    let app_settings = {
+        let mut settings =
+            read_settings_file().expect("Failed to read settings file.");
+        settings.database.name = db_conn.db_name.clone();
+        settings.email_client.base_url = email_server.uri();
+        // NOTE: Must bind to any available port, set to 0.
+        // Otherwise all bound to same port and tests complain about used
+        // port number.
+        settings.port = 0u16;
+        settings
+    };
 
     let app = Application::build(app_settings.clone()).await.unwrap();
     // let addr = listener.local_addr().unwrap();
@@ -85,6 +95,7 @@ pub async fn spawn_app() -> TestApp {
     TestApp {
         addr,
         db_name: db_conn.db_name,
+        email_server,
     }
 }
 

@@ -18,11 +18,15 @@
 
 //! src/routes/subscriptions.rs
 
-use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
+use crate::{
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    email_client::EmailClient,
+};
 use axum::{http::StatusCode, response::IntoResponse, Extension, Form};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use sqlx::SqlitePool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -48,7 +52,7 @@ fn get_current_utc_timestamp() -> String {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(sign_up, pool),
+    skip(sign_up, pool, email_client),
     fields(
         subscriber_email = %sign_up.email,
         subscriber_name = %sign_up.name
@@ -56,6 +60,7 @@ fn get_current_utc_timestamp() -> String {
 )]
 pub async fn subscriptions(
     Extension(pool): Extension<SqlitePool>,
+    Extension(email_client): Extension<Arc<EmailClient>>,
     Form(sign_up): Form<SignUp>,
 ) -> impl IntoResponse {
     let new_subscriber = match sign_up.try_into() {
@@ -63,10 +68,29 @@ pub async fn subscriptions(
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
-    match insert_subscriber(Extension(pool), &new_subscriber).await {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::BAD_REQUEST,
+    if insert_subscriber(Extension(pool), &new_subscriber)
+        .await
+        .is_err()
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR;
     }
+
+    // Send a (useless) email to the new subscriber.
+    //We are ignoring e-mail delivery errors for now.
+    if email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            "Welcome to our newsletter!",
+            "Welcome to our newsletter!",
+        )
+        .await
+        .is_err()
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+
+    StatusCode::OK
 }
 
 #[tracing::instrument(
