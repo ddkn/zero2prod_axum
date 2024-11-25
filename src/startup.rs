@@ -19,7 +19,7 @@
 //! src/startup.rs
 
 use crate::email_client::EmailClient;
-use crate::routes::{health_check, subscriptions};
+use crate::routes::{confirm, health_check, subscriptions};
 use crate::settings::AppSettings;
 use axum::{
     http::Request,
@@ -58,6 +58,7 @@ pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
         )
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscriptions))
+        .route("/subscriptions/confirm", get(confirm))
         .layer(Extension(pool))
         // Use Extension to add the Arc<Reqwest::Client>
         // if using multiple Reqwest::Client, then order matters

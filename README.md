@@ -20,7 +20,7 @@ Some notable changes include the following substitutions,
   - ~[ ] 5.4~ Not deploying to digital ocean, not implementing secrets due to extra code for toml
 - [x] 6. Reject Invalid Subscribers #1
 - [ ] 7. Reject Invalid Subscribers #2
-  - [ ] 7.7 Sending A Confirmation Email
+  - [ ] 7.7.5 Connecting The Dots
 
 ### Warning
 
