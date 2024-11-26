@@ -20,6 +20,25 @@ async fn confirmations_without_token_are_rejected_with_a_400() {
 }
 
 #[tokio::test]
+async fn subscribe_sends_a_confirmation_email_with_a_link() {
+    let app = spawn_app().await;
+    let body = "name=le%20_guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body.into()).await;
+
+    let email_request = &app.email_server.received_requests().await.unwrap()[0];
+    let confirmation_links = app.get_confirmation_links(&email_request);
+
+    assert_eq!(confirmation_links.html, confirmation_links.plain_text);
+}
+
+#[tokio::test]
 async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
     let app = spawn_app().await;
     let body = "name=le%20_guin&email=ursula_le_guin%40gmail.com";
@@ -33,26 +52,9 @@ async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
     app.post_subscriptions(body.into()).await;
 
     let email_request = &app.email_server.received_requests().await.unwrap()[0];
-    let body: serde_json::Value =
-        serde_json::from_slice(&email_request.body).unwrap();
-    // Extract the link from one of the request fields.
-    let get_link = |s: &str| {
-        let links: Vec<_> = linkify::LinkFinder::new()
-            .links(s)
-            .filter(|l| *l.kind() == linkify::LinkKind::Url)
-            .collect();
-        assert_eq!(links.len(), 1);
-        links[0].as_str().to_owned()
-    };
+    let confirmation_links = app.get_confirmation_links(&email_request);
 
-    let raw_confirmation_link = &get_link(&body["HtmlBody"].as_str().unwrap());
-    let mut confirmation_link = Url::parse(raw_confirmation_link).unwrap();
-    // Let's make sure we don't call Random APIs on the web
-    assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1");
-    // Rewrite URL to include port
-    confirmation_link.set_port(Some(app.port)).unwrap();
-
-    let resp = reqwest::get(confirmation_link.clone()).await.unwrap();
+    let resp = reqwest::get(confirmation_links.html).await.unwrap();
 
     assert_eq!(resp.status().as_u16(), 200);
 }
