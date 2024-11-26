@@ -36,6 +36,7 @@ pub struct TestDatabaseConnection {
 
 pub struct TestApp {
     pub addr: SocketAddr,
+    pub port: u16,
     pub db_name: String,
     pub email_server: MockServer,
 }
@@ -82,18 +83,13 @@ pub async fn spawn_app() -> TestApp {
     };
 
     let app = Application::build(app_settings.clone()).await.unwrap();
-    // let addr = listener.local_addr().unwrap();
     let addr = app.address();
-    let _ = tokio::spawn(async move {
-        // axum::serve(
-        //     listener,
-        //     zero2prod_axum::startup::app(db_conn.pool, email_client),
-        // )
-        app.run_until_stopped().await
-    });
+    let port = app.port();
+    let _ = tokio::spawn(async move { app.run_until_stopped().await });
 
     TestApp {
         addr,
+        port,
         db_name: db_conn.db_name,
         email_server,
     }

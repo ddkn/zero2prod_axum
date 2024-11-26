@@ -19,6 +19,7 @@
 //! src/settings.rs
 
 use crate::domain::SubscriberEmail;
+use reqwest::Url;
 use serde::Deserialize;
 use std::fs;
 // See p.122 in book for using Secret with postgres and passwords.
@@ -35,6 +36,19 @@ pub struct AppSettings {
     pub port: u16,
     pub database: DatabaseSettings,
     pub email_client: EmailClientSettings,
+    pub base_url: String,
+}
+
+impl AppSettings {
+    pub fn normalized_base_url(&self) -> Result<Url, url::ParseError> {
+        let base_url = self.base_url.trim_end_matches("/");
+        if !base_url.starts_with("http://") && !base_url.starts_with("https://")
+        {
+            return Url::parse(&format!("http://{}", base_url));
+        }
+
+        Url::parse(&base_url)
+    }
 }
 
 /// DatabaseSettings

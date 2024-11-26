@@ -45,9 +45,18 @@ pub struct Application {
     listener: TcpListener,
 }
 
-pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
+// Need to wrap base url to prevent raw `String` conflicts on access.
+#[derive(Clone)]
+pub struct ApplicationBaseUrl(pub String);
+
+pub fn app(
+    pool: SqlitePool,
+    email_client: EmailClient,
+    base_url: String,
+) -> Router {
     // wrap client in Arc for multiple handlers
     let shared_client = Arc::new(email_client);
+    let base_url = ApplicationBaseUrl(base_url);
     // Define single routes for now
     Router::new()
         .route(
@@ -64,6 +73,7 @@ pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
         // if using multiple Reqwest::Client, then order matters
         // or wrap in a unique struct, e.g., struct ClientA(Client)
         .layer(Extension(shared_client))
+        .layer(Extension(base_url))
         .layer(TraceLayer::new_for_http().make_span_with(
             |request: &Request<_>| {
                 let request_id = uuid::Uuid::new_v4().to_string();
@@ -82,7 +92,7 @@ pub fn app(pool: SqlitePool, email_client: EmailClient) -> Router {
 
 impl Application {
     pub async fn build(settings: AppSettings) -> Result<Self, std::io::Error> {
-        let addr = settings.addr;
+        let addr = &settings.addr;
         let port = settings.port;
         let connection_str = settings
             .database
@@ -98,9 +108,9 @@ impl Application {
             .expect("Invalid sender email!");
         let timeout = settings.email_client.timeout();
         let email_client = EmailClient::new(
-            settings.email_client.base_url,
+            settings.email_client.base_url.clone(),
             sender,
-            settings.email_client.authorization_token,
+            settings.email_client.authorization_token.clone(),
             timeout,
         );
 
@@ -116,15 +126,17 @@ impl Application {
         // Run app using hyper while listening onto the configured port
         tracing::info!("Listening on {}", port);
         let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+        let base_url = settings.normalized_base_url().unwrap();
         Ok(Self {
             port,
-            router: app(pool, email_client),
+            router: app(pool, email_client, base_url.into()),
             listener,
         })
     }
 
     pub fn port(&self) -> u16 {
-        self.port
+        let addr = self.listener.local_addr().unwrap();
+        addr.port()
     }
 
     pub fn address(&self) -> SocketAddr {

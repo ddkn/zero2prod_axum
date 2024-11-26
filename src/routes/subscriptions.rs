@@ -21,6 +21,7 @@
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
+    startup::ApplicationBaseUrl,
 };
 use axum::{http::StatusCode, response::IntoResponse, Extension, Form};
 use chrono::{DateTime, Utc};
@@ -52,7 +53,7 @@ fn get_current_utc_timestamp() -> String {
 
 #[tracing::instrument(
     name = "Adding a new subscriber",
-    skip(sign_up, pool, email_client),
+    skip(sign_up, pool, email_client, base_url),
     fields(
         subscriber_email = %sign_up.email,
         subscriber_name = %sign_up.name
@@ -61,6 +62,7 @@ fn get_current_utc_timestamp() -> String {
 pub async fn subscriptions(
     Extension(pool): Extension<SqlitePool>,
     Extension(email_client): Extension<Arc<EmailClient>>,
+    Extension(base_url): Extension<ApplicationBaseUrl>,
     Form(sign_up): Form<SignUp>,
 ) -> impl IntoResponse {
     let new_subscriber = match sign_up.try_into() {
@@ -75,7 +77,7 @@ pub async fn subscriptions(
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
 
-    if send_confirmation_email(&email_client, new_subscriber)
+    if send_confirmation_email(&email_client, new_subscriber, &base_url.0)
         .await
         .is_err()
     {
@@ -87,14 +89,17 @@ pub async fn subscriptions(
 
 #[tracing::instrument(
     name = "Send a confirmation email to a new subscriber",
-    skip(email_client, new_subscriber)
+    skip(email_client, new_subscriber, base_url)
 )]
 pub async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
+    base_url: &str,
 ) -> Result<(), reqwest::Error> {
-    let confirmation_link =
-        "https://there-is-no-such-domain.com/subscriptions/confirm";
+    let confirmation_link = format!(
+        "{}subscriptions/confirm?subscription_token=mytoken",
+        base_url
+    );
     // Send a (useless) email to the new subscriber.
     //We are ignoring e-mail delivery errors for now.
     email_client

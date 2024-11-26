@@ -1,5 +1,6 @@
 addr = "127.0.0.1"
 port = 9000
+base_url = "127.0.0.1"
 
 [database]
 name = "demo.db"
