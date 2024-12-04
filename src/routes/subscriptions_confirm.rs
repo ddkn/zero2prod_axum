@@ -1,7 +1,7 @@
 use axum::{
     extract::Query, http::StatusCode, response::IntoResponse, Extension,
 };
-use sqlx::{Connection, SqlitePool};
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]

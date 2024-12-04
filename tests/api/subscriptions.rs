@@ -178,3 +178,25 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
     // The two links should be identical
     assert_eq!(html_link, text_link);
 }
+
+#[tokio::test]
+async fn subscription_fails_if_there_is_a_fatal_database_error() {
+    let app = spawn_app().await;
+    let mut connection = SqliteConnection::connect(&app.db_name)
+        .await
+        .expect("Failed to connect to database.");
+
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    // Sabotage the database
+    sqlx::query!(
+        "ALTER TABLE subscription_tokens RENAME TO subscription_tokens_extra;",
+    )
+    .execute(&mut connection)
+    .await
+    .unwrap();
+
+    let resp = app.post_subscriptions(body.into()).await;
+
+    assert_eq!(resp.status().as_u16(), 500);
+}

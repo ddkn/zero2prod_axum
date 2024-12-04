@@ -74,20 +74,22 @@ pub fn app(
         // or wrap in a unique struct, e.g., struct ClientA(Client)
         .layer(Extension(shared_client))
         .layer(Extension(base_url))
-        .layer(TraceLayer::new_for_http().make_span_with(
-            |request: &Request<_>| {
-                let request_id = uuid::Uuid::new_v4().to_string();
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &Request<_>| {
+                    let request_id = uuid::Uuid::new_v4().to_string();
 
-                tracing::span!(
-                    Level::DEBUG,
-                    "request",
-                    %request_id,
-                    method = ?request.method(),
-                    uri = %request.uri(),
-                    version = ?request.version(),
-                )
-            },
-        ))
+                    tracing::span!(
+                        Level::DEBUG,
+                        "request",
+                        %request_id,
+                        method = ?request.method(),
+                        uri = %request.uri(),
+                        version = ?request.version(),
+                    )
+                })
+                .on_failure(()),
+        )
 }
 
 impl Application {
