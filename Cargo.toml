@@ -38,6 +38,7 @@ fake = "3.0.0"
 linkify = "0.10.0"
 url = "2.5.4"
 axum-macros = "0.4.2"
+thiserror = "2.0.4"
 [dev-dependencies]
 axum = "0.7.5"
 http-body-util = "0.1.1"
