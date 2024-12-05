@@ -36,7 +36,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 // use tower::{Service, ServiceBuilder, ServiceExt};
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
 pub struct Application {
@@ -88,7 +88,7 @@ pub fn app(
                         version = ?request.version(),
                     )
                 })
-                .on_failure(()),
+                .on_response(DefaultOnResponse::new().include_headers(true)),
         )
 }
 

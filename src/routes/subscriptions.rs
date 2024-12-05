@@ -23,6 +23,7 @@ use crate::{
     email_client::EmailClient,
     startup::ApplicationBaseUrl,
 };
+use anyhow::Context;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -76,24 +77,30 @@ pub async fn subscriptions(
         .try_into()
         .map_err(SubscriptionsError::ValidationError)?;
 
-    let mut transaction =
-        pool.begin().await.map_err(SubscriptionsError::PoolError)?;
+    let mut transaction = pool
+        .begin()
+        .await
+        .context("Failed to acquire a Sqlite connection from the pool.")?;
     let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
         .await
-        .map_err(SubscriptionsError::InsertSubscriberError)?;
+        .context("Failed to insert new subscriber into the database")?;
     let subscription_token = generate_subscription_token();
-    store_token(&mut transaction, subscriber_id, &subscription_token).await?;
-    transaction
-        .commit()
+    let _ = store_token(&mut transaction, subscriber_id, &subscription_token)
         .await
-        .map_err(SubscriptionsError::TransactionCommitError)?;
+        .context(
+            "Failed to store the confirmation token for a new subscriber.",
+        )?;
+    transaction.commit().await.context(
+        "Failed to commit SQL transaction to store a new subscriber.",
+    )?;
     send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url.0,
         &subscription_token,
     )
-    .await?;
+    .await
+    .context("Failed to send a confirmation email.")?;
 
     Ok(StatusCode::OK)
 }
@@ -107,7 +114,7 @@ pub async fn store_token(
     transaction: &mut Transaction<'_, Sqlite>,
     subscriber_id: Uuid,
     subscription_token: &str,
-) -> Result<(), StoreTokenError> {
+) -> Result<(), sqlx::Error> {
     let subscriber_id_string = subscriber_id.to_string();
     let query = sqlx::query!(
         r#"INSERT INTO subscription_tokens (subscription_token, subscriber_id)
@@ -117,10 +124,7 @@ pub async fn store_token(
     );
     // Can define `impl From<sqlx::Error> for StoreTokenError` and
     // propogate errors early with `?`
-    transaction
-        .execute(query)
-        .await
-        .map_err(|e| StoreTokenError(e))?;
+    transaction.execute(query).await?;
 
     Ok(())
 }
@@ -189,85 +193,8 @@ pub async fn insert_subscriber(
         subscriber_name,
         current_time
     );
-    transaction.execute(query).await.map_err(|e| {
-        tracing::error!("Failed to execute query: {:?}", e);
-        e
-        // Using the `?` to return early if fn failed, i.e., sqlx::Error
-    })?;
+    transaction.execute(query).await?;
     Ok(subscriber_id)
-}
-
-#[derive(thiserror::Error)]
-pub enum SubscriptionsError {
-    // String or &String cannot use #[from] or #[source], requires `.map_err(...)`
-    #[error("{0}")]
-    ValidationError(String),
-    #[error("Failed to store the confirmation token for a new subscriber")]
-    StoreTokenError(#[from] StoreTokenError),
-    #[error("Failed to send a confirmation email")]
-    SendEmailError(#[from] reqwest::Error),
-    #[error("Failed to acquire a Sqlite connection from the pool")]
-    PoolError(#[source] sqlx::Error),
-    #[error("Failed to insert new subscriber in the database")]
-    InsertSubscriberError(#[source] sqlx::Error),
-    #[error("Failed to commit SQL transaction to store a new subscriber")]
-    TransactionCommitError(#[source] sqlx::Error),
-}
-
-impl IntoResponse for SubscriptionsError {
-    fn into_response(self) -> Response {
-        tracing::error!(error = ?self, "Subscriptions error");
-        // Can match here to give specific a `StatusCode`
-        let status = match self {
-            SubscriptionsError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscriptionsError::StoreTokenError(_)
-            | SubscriptionsError::SendEmailError(_)
-            | SubscriptionsError::PoolError(_)
-            | SubscriptionsError::InsertSubscriberError(_)
-            | SubscriptionsError::TransactionCommitError(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        };
-
-        (status, self.to_string()).into_response()
-    }
-}
-
-// Implement this to utilize the error chaining printing
-impl std::fmt::Debug for SubscriptionsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        error_chain_fmt(self, f)
-    }
-}
-
-pub struct StoreTokenError(sqlx::Error);
-
-impl std::error::Error for StoreTokenError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.0)
-    }
-}
-
-impl From<sqlx::Error> for StoreTokenError {
-    fn from(err: sqlx::Error) -> Self {
-        Self(err)
-    }
-}
-
-impl std::fmt::Display for StoreTokenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "A Database error was encountered while \
-            trying to store a subscription token",
-        )
-    }
-}
-
-impl std::fmt::Debug for StoreTokenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        error_chain_fmt(self, f)
-    }
 }
 
 fn error_chain_fmt(
@@ -282,4 +209,36 @@ fn error_chain_fmt(
     }
 
     Ok(())
+}
+
+#[derive(thiserror::Error)]
+pub enum SubscriptionsError {
+    // String or &String cannot use #[from] or #[source], requires `.map_err(...)`
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl IntoResponse for SubscriptionsError {
+    fn into_response(self) -> Response {
+        // Can match here to give specific a `StatusCode`
+        match self {
+            SubscriptionsError::ValidationError(_) => {
+                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+            }
+            SubscriptionsError::UnexpectedError(_) => {
+                // Avoid passing internal details to the user only use `tracing::error`
+                tracing::error!(error = ?self, "Subscriptions error");
+                (StatusCode::INTERNAL_SERVER_ERROR).into_response()
+            }
+        }
+    }
+}
+
+// Implement this to utilize the error chaining printing
+impl std::fmt::Debug for SubscriptionsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
 }

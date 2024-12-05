@@ -20,8 +20,8 @@ Some notable changes include the following substitutions,
   - ~[ ] 5.4~ Not deploying to digital ocean, not implementing secrets due to extra code for toml
 - [x] 6. Reject Invalid Subscribers #1
 - [x] 7. Reject Invalid Subscribers #2
-- [ ] 8. Error Handling
-  - [ ] 8.4 Avoid "Ball Of Mud" Error Enums
+- [x] 8. Error Handling
+- [ ] 9. Naive Newsletter Delivery
 
 ### Warning
 
