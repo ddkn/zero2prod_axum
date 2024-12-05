@@ -22,6 +22,11 @@ async fn subscribe_returns_200_for_valid_form_data() {
     let resp = app.post_subscriptions(body.into()).await;
 
     assert_eq!(StatusCode::OK, resp.status().as_u16());
+
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        app.db_name.as_str()
+    ));
 }
 
 #[tokio::test]
@@ -51,10 +56,10 @@ async fn subscribe_persists_the_new_subscriber() {
     assert_eq!(saved.name, "bird and boy");
     assert_eq!(saved.status, "pending_confirmation");
 
-    // cleanup_test_db(app.db_name.clone()).await.expect(&format!(
-    //     "Failure to delete test database {}",
-    //     app.db_name.as_str()
-    // ));
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        app.db_name.as_str()
+    ));
 }
 
 /// Subscribe missing data
@@ -139,6 +144,10 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
 
     // Assert
     // Mock asserts on drop
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        app.db_name.as_str()
+    ));
 }
 
 #[tokio::test]
@@ -176,6 +185,10 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
     let html_link = get_link(&body["HtmlBody"].as_str().unwrap());
     let text_link = get_link(&body["TextBody"].as_str().unwrap());
     // The two links should be identical
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        app.db_name.as_str()
+    ));
     assert_eq!(html_link, text_link);
 }
 
@@ -198,5 +211,9 @@ async fn subscription_fails_if_there_is_a_fatal_database_error() {
 
     let resp = app.post_subscriptions(body.into()).await;
 
+    cleanup_test_db(app.db_name.clone()).await.expect(&format!(
+        "Failure to delete test database {}",
+        app.db_name.as_str()
+    ));
     assert_eq!(resp.status().as_u16(), 500);
 }
