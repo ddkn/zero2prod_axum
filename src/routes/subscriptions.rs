@@ -74,12 +74,17 @@ pub async fn subscriptions(
 ) -> Result<impl IntoResponse, SubscriptionsError> {
     let new_subscriber = sign_up.try_into()?;
 
-    let mut transaction = pool.begin().await?;
-    let subscriber_id =
-        insert_subscriber(&mut transaction, &new_subscriber).await?;
+    let mut transaction =
+        pool.begin().await.map_err(SubscriptionsError::PoolError)?;
+    let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber)
+        .await
+        .map_err(SubscriptionsError::InsertSubscriberError)?;
     let subscription_token = generate_subscription_token();
     store_token(&mut transaction, subscriber_id, &subscription_token).await?;
-    transaction.commit().await?;
+    transaction
+        .commit()
+        .await
+        .map_err(SubscriptionsError::TransactionCommitError)?;
     send_confirmation_email(
         &email_client,
         new_subscriber,
@@ -192,12 +197,25 @@ pub async fn insert_subscriber(
 
 pub enum SubscriptionsError {
     ValidationError(String),
-    DatabaseError(sqlx::Error),
     StoreTokenError(StoreTokenError),
     SendEmailError(reqwest::Error),
+    PoolError(sqlx::Error),
+    InsertSubscriberError(sqlx::Error),
+    TransactionCommitError(sqlx::Error),
 }
 
-impl std::error::Error for SubscriptionsError {}
+impl std::error::Error for SubscriptionsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            SubscriptionsError::ValidationError(_) => None,
+            SubscriptionsError::StoreTokenError(err) => Some(err),
+            SubscriptionsError::SendEmailError(err) => Some(err),
+            SubscriptionsError::PoolError(err) => Some(err),
+            SubscriptionsError::InsertSubscriberError(err) => Some(err),
+            SubscriptionsError::TransactionCommitError(err) => Some(err),
+        }
+    }
+}
 
 impl IntoResponse for SubscriptionsError {
     fn into_response(self) -> Response {
@@ -205,9 +223,11 @@ impl IntoResponse for SubscriptionsError {
         // Can match here to give specific a `StatusCode`
         let status = match self {
             SubscriptionsError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            SubscriptionsError::DatabaseError(_)
-            | SubscriptionsError::StoreTokenError(_)
-            | SubscriptionsError::SendEmailError(_) => {
+            SubscriptionsError::StoreTokenError(_)
+            | SubscriptionsError::SendEmailError(_)
+            | SubscriptionsError::PoolError(_)
+            | SubscriptionsError::InsertSubscriberError(_)
+            | SubscriptionsError::TransactionCommitError(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         };
@@ -219,12 +239,6 @@ impl IntoResponse for SubscriptionsError {
 impl From<reqwest::Error> for SubscriptionsError {
     fn from(err: reqwest::Error) -> Self {
         Self::SendEmailError(err)
-    }
-}
-
-impl From<sqlx::Error> for SubscriptionsError {
-    fn from(err: sqlx::Error) -> Self {
-        Self::DatabaseError(err)
     }
 }
 
@@ -246,14 +260,20 @@ impl std::fmt::Display for SubscriptionsError {
             SubscriptionsError::ValidationError(s) => {
                 write!(f, "Validation error: {}", s)
             }
-            SubscriptionsError::DatabaseError(s) => {
-                write!(f, "Database error: {:?}", s)
-            }
             SubscriptionsError::StoreTokenError(s) => {
-                write!(f, "Token error: {:?}", s)
+                write!(f, "Token error: {}", s)
             }
             SubscriptionsError::SendEmailError(s) => {
                 write!(f, "Send email error: {}", s)
+            }
+            SubscriptionsError::PoolError(s) => {
+                write!(f, "Pool error: {}", s)
+            }
+            SubscriptionsError::InsertSubscriberError(s) => {
+                write!(f, "Insert subscriber error: {}", s)
+            }
+            SubscriptionsError::TransactionCommitError(s) => {
+                write!(f, "Transaction commit error: {}", s)
             }
         }
     }
