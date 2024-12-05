@@ -72,40 +72,21 @@ pub async fn subscriptions(
     Extension(base_url): Extension<ApplicationBaseUrl>,
     Form(sign_up): Form<SignUp>,
 ) -> Result<impl IntoResponse, SubscriptionsError> {
-    let new_subscriber = match sign_up.try_into() {
-        Ok(subscriber) => subscriber,
-        Err(_) => return Ok(StatusCode::BAD_REQUEST),
-    };
+    let new_subscriber = sign_up.try_into()?;
 
-    let mut transaction = match pool.begin().await {
-        Ok(transaction) => transaction,
-        Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
-    };
-
+    let mut transaction = pool.begin().await?;
     let subscriber_id =
-        match insert_subscriber(&mut transaction, &new_subscriber).await {
-            Ok(id) => id,
-            Err(_) => return Ok(StatusCode::INTERNAL_SERVER_ERROR),
-        };
-
+        insert_subscriber(&mut transaction, &new_subscriber).await?;
     let subscription_token = generate_subscription_token();
     store_token(&mut transaction, subscriber_id, &subscription_token).await?;
-
-    if transaction.commit().await.is_err() {
-        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    if send_confirmation_email(
+    transaction.commit().await?;
+    send_confirmation_email(
         &email_client,
         new_subscriber,
         &base_url.0,
         &subscription_token,
     )
-    .await
-    .is_err()
-    {
-        return Ok(StatusCode::INTERNAL_SERVER_ERROR);
-    }
+    .await?;
 
     Ok(StatusCode::OK)
 }
@@ -210,8 +191,10 @@ pub async fn insert_subscriber(
 }
 
 pub enum SubscriptionsError {
-    DatabaseError(String),
-    TokenError(String),
+    ValidationError(String),
+    DatabaseError(sqlx::Error),
+    StoreTokenError(StoreTokenError),
+    SendEmailError(reqwest::Error),
 }
 
 impl std::error::Error for SubscriptionsError {}
@@ -220,19 +203,57 @@ impl IntoResponse for SubscriptionsError {
     fn into_response(self) -> Response {
         tracing::error!(error = ?self, "Subscriptions error");
         // Can match here to give specific a `StatusCode`
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self))
-            .into_response()
+        let status = match self {
+            SubscriptionsError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            SubscriptionsError::DatabaseError(_)
+            | SubscriptionsError::StoreTokenError(_)
+            | SubscriptionsError::SendEmailError(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        };
+
+        status.into_response()
+    }
+}
+
+impl From<reqwest::Error> for SubscriptionsError {
+    fn from(err: reqwest::Error) -> Self {
+        Self::SendEmailError(err)
+    }
+}
+
+impl From<sqlx::Error> for SubscriptionsError {
+    fn from(err: sqlx::Error) -> Self {
+        Self::DatabaseError(err)
+    }
+}
+
+impl From<StoreTokenError> for SubscriptionsError {
+    fn from(err: StoreTokenError) -> Self {
+        Self::StoreTokenError(err)
+    }
+}
+
+impl From<String> for SubscriptionsError {
+    fn from(err: String) -> Self {
+        Self::ValidationError(err)
     }
 }
 
 impl std::fmt::Display for SubscriptionsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SubscriptionsError::DatabaseError(s) => {
-                write!(f, "Database error: {}", s)
+            SubscriptionsError::ValidationError(s) => {
+                write!(f, "Validation error: {}", s)
             }
-            SubscriptionsError::TokenError(s) => {
-                write!(f, "Token error: {}", s)
+            SubscriptionsError::DatabaseError(s) => {
+                write!(f, "Database error: {:?}", s)
+            }
+            SubscriptionsError::StoreTokenError(s) => {
+                write!(f, "Token error: {:?}", s)
+            }
+            SubscriptionsError::SendEmailError(s) => {
+                write!(f, "Send email error: {}", s)
             }
         }
     }
@@ -244,24 +265,11 @@ impl std::fmt::Debug for SubscriptionsError {
     }
 }
 
-impl From<StoreTokenError> for SubscriptionsError {
-    fn from(err: StoreTokenError) -> Self {
-        SubscriptionsError::TokenError(format!("{:?}", err))
-    }
-}
-
 pub struct StoreTokenError(sqlx::Error);
 
 impl std::error::Error for StoreTokenError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.0)
-    }
-}
-
-impl IntoResponse for StoreTokenError {
-    fn into_response(self) -> Response {
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self))
-            .into_response()
     }
 }
 

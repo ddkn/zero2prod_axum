@@ -21,7 +21,7 @@ Some notable changes include the following substitutions,
 - [x] 6. Reject Invalid Subscribers #1
 - [x] 7. Reject Invalid Subscribers #2
 - [ ] 8. Error Handling
-  - [ ] 8.3 Errors For Control Flow
+  - [ ] 8.3.3 The Error Type Is Not Enough
 
 ### Warning
 
