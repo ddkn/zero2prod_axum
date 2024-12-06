@@ -21,6 +21,7 @@
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
+    routes::error_chain_fmt,
     startup::ApplicationBaseUrl,
 };
 use anyhow::Context;
@@ -36,6 +37,38 @@ use sqlx::SqlitePool;
 use sqlx::{Executor, Sqlite, Transaction};
 use std::{char, sync::Arc};
 use uuid::Uuid;
+
+#[derive(thiserror::Error)]
+pub enum SubscriptionsError {
+    // String or &String cannot use #[from] or #[source], requires `.map_err(...)`
+    #[error("{0}")]
+    ValidationError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl IntoResponse for SubscriptionsError {
+    fn into_response(self) -> Response {
+        // Can match here to give specific a `StatusCode`
+        match self {
+            SubscriptionsError::ValidationError(_) => {
+                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+            }
+            SubscriptionsError::UnexpectedError(_) => {
+                // Avoid passing internal details to the user only use `tracing::error`
+                tracing::error!(error = ?self, "Subscriptions error");
+                (StatusCode::INTERNAL_SERVER_ERROR).into_response()
+            }
+        }
+    }
+}
+
+// Implement this to utilize the error chaining printing
+impl std::fmt::Debug for SubscriptionsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
 
 #[derive(Deserialize)]
 pub struct SignUp {
@@ -195,50 +228,4 @@ pub async fn insert_subscriber(
     );
     transaction.execute(query).await?;
     Ok(subscriber_id)
-}
-
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    writeln!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-
-    Ok(())
-}
-
-#[derive(thiserror::Error)]
-pub enum SubscriptionsError {
-    // String or &String cannot use #[from] or #[source], requires `.map_err(...)`
-    #[error("{0}")]
-    ValidationError(String),
-    #[error(transparent)]
-    UnexpectedError(#[from] anyhow::Error),
-}
-
-impl IntoResponse for SubscriptionsError {
-    fn into_response(self) -> Response {
-        // Can match here to give specific a `StatusCode`
-        match self {
-            SubscriptionsError::ValidationError(_) => {
-                (StatusCode::BAD_REQUEST, self.to_string()).into_response()
-            }
-            SubscriptionsError::UnexpectedError(_) => {
-                // Avoid passing internal details to the user only use `tracing::error`
-                tracing::error!(error = ?self, "Subscriptions error");
-                (StatusCode::INTERNAL_SERVER_ERROR).into_response()
-            }
-        }
-    }
-}
-
-// Implement this to utilize the error chaining printing
-impl std::fmt::Debug for SubscriptionsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        error_chain_fmt(self, f)
-    }
 }
