@@ -22,6 +22,7 @@ Some notable changes include the following substitutions,
 - [x] 7. Reject Invalid Subscribers #2
 - [x] 8. Error Handling
 - [ ] 9. Naive Newsletter Delivery
+  - [ ] 9.7 Send Newsletter Emails
 
 ### Warning
 
