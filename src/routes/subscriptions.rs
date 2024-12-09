@@ -188,7 +188,7 @@ pub async fn send_confirmation_email(
     //We are ignoring e-mail delivery errors for now.
     email_client
       .send_email(
-          new_subscriber.email,
+          &new_subscriber.email,
           "Welcome!",
           &format!(
               "Welcome to our newsletter!<br />\

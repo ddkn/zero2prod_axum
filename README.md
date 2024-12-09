@@ -21,8 +21,8 @@ Some notable changes include the following substitutions,
 - [x] 6. Reject Invalid Subscribers #1
 - [x] 7. Reject Invalid Subscribers #2
 - [x] 8. Error Handling
-- [ ] 9. Naive Newsletter Delivery
-  - [ ] 9.7 Send Newsletter Emails
+- [x] 9. Naive Newsletter Delivery
+- [ ] 10. Securing Our API
 
 ### Warning
 
@@ -42,7 +42,7 @@ For the bare minimum CI check run the following command that,
 4. runs the app
 
 ```
-cargo watch -x check -x test -x run
+RUST_LOG="sqlx=error,info" TEST_LOG=true cargo watch -x check -x test -x run
 ```
 
 If at any point, one of those steps fails, the code does not compile. It should not be added to the git repository. This could be added as a git [pre-commit](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) hook if necessary.
