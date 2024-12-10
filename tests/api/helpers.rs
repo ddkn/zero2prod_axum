@@ -93,6 +93,10 @@ impl TestApp {
     ) -> reqwest::Response {
         reqwest::Client::new()
             .post(&format!("http://{}/newsletters", &self.addr))
+            .basic_auth(
+                Uuid::new_v4().to_string(),
+                Some(Uuid::new_v4().to_string()),
+            )
             .json(&body)
             .send()
             .await
