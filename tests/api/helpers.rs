@@ -91,16 +91,30 @@ impl TestApp {
         &self,
         body: serde_json::Value,
     ) -> reqwest::Response {
+        let (username, password) = self.test_user().await;
         reqwest::Client::new()
             .post(&format!("http://{}/newsletters", &self.addr))
-            .basic_auth(
-                Uuid::new_v4().to_string(),
-                Some(Uuid::new_v4().to_string()),
-            )
+            .basic_auth(username, Some(password))
             .json(&body)
             .send()
             .await
             .expect("Failed to execute request.")
+    }
+
+    pub async fn test_user(&self) -> (String, String) {
+        let conn_opt = SqliteConnectOptions::from_str(&self.db_name).unwrap();
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(10)
+            .connect_with(conn_opt)
+            .await
+            .expect("Failed to create database pool.");
+
+        let row = sqlx::query!("SELECT username, password FROM users LIMIT 1",)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to create test_users.");
+        (row.username, row.password)
     }
 }
 
@@ -137,12 +151,15 @@ pub async fn spawn_app() -> TestApp {
     let port = app.port();
     let _ = tokio::spawn(async move { app.run_until_stopped().await });
 
-    TestApp {
+    let test_app = TestApp {
         addr,
         port,
         db_name: db_conn.db_name,
         email_server,
-    }
+    };
+    add_test_user(&db_conn.pool).await;
+
+    test_app
 }
 
 async fn create_connect_test_db() -> Result<TestDatabaseConnection, sqlx::Error>
@@ -171,4 +188,21 @@ async fn create_connect_test_db() -> Result<TestDatabaseConnection, sqlx::Error>
 pub async fn cleanup_test_db(db_name: String) -> Result<(), sqlx::Error> {
     remove_file(&db_name)?;
     Ok(())
+}
+
+async fn add_test_user(pool: &SqlitePool) {
+    let user_id = Uuid::new_v4().to_string();
+    let username = Uuid::new_v4().to_string();
+    let password = Uuid::new_v4().to_string();
+    sqlx::query!(
+        "
+        INSERT INTO users (user_id, username, password)
+        VALUES ($1, $2, $3)",
+        user_id,
+        username,
+        password,
+    )
+    .execute(pool)
+    .await
+    .expect("Failed to create test users.");
 }

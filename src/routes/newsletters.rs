@@ -6,7 +6,7 @@ use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
 use base64::Engine;
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret};
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
@@ -64,16 +64,50 @@ struct ConfirmedSubscriber {
     email: SubscriberEmail,
 }
 
+async fn validate_credentials(
+    credentials: &Credentials,
+    pool: &SqlitePool,
+) -> Result<uuid::Uuid, PublishError> {
+    let pw = credentials.password.expose_secret();
+    let user_id: Option<_> = sqlx::query!(
+        r#"
+        SELECT user_id
+        FROM users
+        WHERE username = $1 AND password = $2
+        "#,
+        credentials.username,
+        pw,
+    )
+    .fetch_optional(pool)
+    .await
+    .context("Failed to preform query to validate auth credentials.")
+    .map_err(PublishError::AuthError)?;
+
+    user_id
+        .map(|row| {
+            let id = row.user_id.unwrap();
+            uuid::Uuid::parse_str(&id).unwrap()
+        })
+        .ok_or_else(|| anyhow::anyhow!("Invalid username or password."))
+        .map_err(PublishError::AuthError)
+}
+
 // `HeaderMap` must come before `Json` as the later consumes the whole
 // request leaving nothing for `HeaderMap` to do
+#[tracing::instrument(name = "Publish a newsletter issue", skip(pool, email_client, body, headers), fields(username=tracing::field::Empty, user_id=tracing::field::Empty))]
 pub async fn publish_newsletter(
     Extension(pool): Extension<SqlitePool>,
     Extension(email_client): Extension<Arc<EmailClient>>,
     headers: HeaderMap,
     Json(body): Json<BodyData>,
 ) -> Result<impl IntoResponse, PublishError> {
-    let _credentials =
+    let credentials =
         basic_authentication(&headers).map_err(PublishError::AuthError)?;
+    tracing::Span::current()
+        .record("username", &tracing::field::display(&credentials.username));
+    let user_id = validate_credentials(&credentials, &pool).await?;
+    tracing::Span::current()
+        .record("user_id", &tracing::field::display(&user_id));
 
     let subscribers = get_confirmed_subscribers(&pool)
         .await
