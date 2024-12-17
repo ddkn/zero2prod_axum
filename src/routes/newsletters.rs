@@ -2,12 +2,12 @@ use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
 use crate::routes::error_chain_fmt;
 use anyhow::Context;
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
 use base64::Engine;
 use secrecy::{ExposeSecret, Secret};
-use sha3::Digest;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
@@ -69,30 +69,42 @@ async fn validate_credentials(
     credentials: &Credentials,
     pool: &SqlitePool,
 ) -> Result<uuid::Uuid, PublishError> {
-    let password_hash =
-        sha3::Sha3_256::digest(credentials.password.expose_secret().as_bytes());
-    let password_hash = format!("{:x}", password_hash);
-    let user_id: Option<_> = sqlx::query!(
+    let row: Option<_> = sqlx::query!(
         r#"
-        SELECT user_id
+        SELECT user_id, password_hash
         FROM users
-        WHERE username = $1 AND password_hash = $2
+        WHERE username = $1
         "#,
         credentials.username,
-        password_hash,
     )
     .fetch_optional(pool)
     .await
-    .context("Failed to preform query to validate auth credentials.")
-    .map_err(PublishError::AuthError)?;
+    .context("Failed to perform a query to retrieve stored credentials.")
+    .map_err(PublishError::UnexepectedError)?;
 
-    user_id
-        .map(|row| {
-            let id = row.user_id.unwrap();
-            uuid::Uuid::parse_str(&id).unwrap()
-        })
-        .ok_or_else(|| anyhow::anyhow!("Invalid username or password."))
-        .map_err(PublishError::AuthError)
+    let (expected_password_hash, user_id) = match row {
+        Some(row) => (row.password_hash, row.user_id),
+        None => {
+            return Err(PublishError::AuthError(anyhow::anyhow!(
+                "Unknown username."
+            )))
+        }
+    };
+
+    let expected_password_hash = PasswordHash::new(&expected_password_hash)
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishError::UnexepectedError)?;
+
+    Argon2::default()
+        .verify_password(
+            credentials.password.expose_secret().as_bytes(),
+            &expected_password_hash,
+        )
+        .context("Invalid password.")
+        .map_err(PublishError::AuthError)?;
+
+    let user_id = uuid::Uuid::parse_str(&user_id.unwrap()).unwrap();
+    Ok(user_id)
 }
 
 // `HeaderMap` must come before `Json` as the later consumes the whole
@@ -107,10 +119,10 @@ pub async fn publish_newsletter(
     let credentials =
         basic_authentication(&headers).map_err(PublishError::AuthError)?;
     tracing::Span::current()
-        .record("username", &tracing::field::display(&credentials.username));
+        .record("username", tracing::field::display(&credentials.username));
     let user_id = validate_credentials(&credentials, &pool).await?;
     tracing::Span::current()
-        .record("user_id", &tracing::field::display(&user_id));
+        .record("user_id", tracing::field::display(&user_id));
 
     let subscribers = get_confirmed_subscribers(&pool)
         .await

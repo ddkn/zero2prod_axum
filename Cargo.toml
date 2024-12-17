@@ -41,7 +41,7 @@ axum-macros = "0.4.2"
 thiserror = "2.0.4"
 anyhow = "1.0.94"
 base64 = "0.22.1"
-sha3 = "0.10.8"
+argon2 = { version = "0.5.3", features = ["std"] }
 [dev-dependencies]
 axum = "0.7.5"
 http-body-util = "0.1.1"
