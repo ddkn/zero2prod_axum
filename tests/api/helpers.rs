@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use reqwest::Url;
+use sha3::Digest;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::net::SocketAddr;
 use std::{fs::remove_file, str::FromStr};
@@ -35,23 +36,24 @@ pub struct TestDatabaseConnection {
     pub pool: SqlitePool,
 }
 
+pub struct ConfirmationLinks {
+    pub html: reqwest::Url,
+    pub plain_text: reqwest::Url,
+}
+
 pub struct TestApp {
     pub addr: SocketAddr,
     pub port: u16,
     pub db_name: String,
     pub email_server: MockServer,
-}
-
-pub struct ConfirmationLinks {
-    pub html: reqwest::Url,
-    pub plain_text: reqwest::Url,
+    test_user: TestUser,
 }
 
 impl TestApp {
     pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
         let addr = self.addr;
         reqwest::Client::new()
-            .post(&format!("http://{addr}/subscriptions"))
+            .post(format!("http://{addr}/subscriptions"))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
             .send()
@@ -81,8 +83,8 @@ impl TestApp {
             confirmation_link
         };
 
-        let html = get_link(&body["HtmlBody"].as_str().unwrap());
-        let plain_text = get_link(&body["TextBody"].as_str().unwrap());
+        let html = get_link(body["HtmlBody"].as_str().unwrap());
+        let plain_text = get_link(body["TextBody"].as_str().unwrap());
 
         ConfirmationLinks { html, plain_text }
     }
@@ -91,10 +93,12 @@ impl TestApp {
         &self,
         body: serde_json::Value,
     ) -> reqwest::Response {
-        let (username, password) = self.test_user().await;
         reqwest::Client::new()
-            .post(&format!("http://{}/newsletters", &self.addr))
-            .basic_auth(username, Some(password))
+            .post(format!("http://{}/newsletters", &self.addr))
+            .basic_auth(
+                &self.test_user.username,
+                Some(&self.test_user.password),
+            )
             .json(&body)
             .send()
             .await
@@ -110,11 +114,47 @@ impl TestApp {
             .await
             .expect("Failed to create database pool.");
 
-        let row = sqlx::query!("SELECT username, password FROM users LIMIT 1",)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to create test_users.");
-        (row.username, row.password)
+        let row =
+            sqlx::query!("SELECT username, password_hash FROM users LIMIT 1",)
+                .fetch_one(&pool)
+                .await
+                .expect("Failed to create test_users.");
+        (row.username, row.password_hash)
+    }
+}
+
+// Should be Uuid, but SQLite does not handle UUID as type
+pub struct TestUser {
+    pub user_id: Uuid,
+    pub username: String,
+    pub password: String,
+}
+
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Uuid::new_v4(),
+            username: Uuid::new_v4().to_string(),
+            password: Uuid::new_v4().to_string(),
+        }
+    }
+
+    async fn store(&self, pool: &SqlitePool) {
+        let user_id_str = self.user_id.to_string();
+        let password_hash = sha3::Sha3_256::digest(self.password.as_bytes());
+        let password_hash = format!("{:x}", password_hash);
+
+        sqlx::query!(
+            "
+            INSERT INTO users (user_id, username, password_hash)
+            VALUES ($1, $2, $3)",
+            user_id_str,
+            self.username,
+            password_hash,
+        )
+        .execute(pool)
+        .await
+        .expect("Failed to create test users.");
     }
 }
 
@@ -149,15 +189,17 @@ pub async fn spawn_app() -> TestApp {
     let app = Application::build(app_settings.clone()).await.unwrap();
     let addr = app.address();
     let port = app.port();
-    let _ = tokio::spawn(async move { app.run_until_stopped().await });
+    tokio::spawn(async move { app.run_until_stopped().await });
 
     let test_app = TestApp {
         addr,
         port,
         db_name: db_conn.db_name,
         email_server,
+        test_user: TestUser::generate(),
     };
-    add_test_user(&db_conn.pool).await;
+    // add_test_user(&db_conn.pool).await;
+    test_app.test_user.store(&db_conn.pool).await;
 
     test_app
 }
@@ -196,7 +238,7 @@ async fn add_test_user(pool: &SqlitePool) {
     let password = Uuid::new_v4().to_string();
     sqlx::query!(
         "
-        INSERT INTO users (user_id, username, password)
+        INSERT INTO users (user_id, username, password_hash)
         VALUES ($1, $2, $3)",
         user_id,
         username,

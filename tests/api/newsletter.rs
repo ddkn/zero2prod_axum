@@ -1,6 +1,6 @@
 use crate::helpers::{spawn_app, ConfirmationLinks, TestApp};
 use axum::http::StatusCode;
-use wiremock::matchers::{any, method, path};
+use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]

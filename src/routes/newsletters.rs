@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
 use base64::Engine;
 use secrecy::{ExposeSecret, Secret};
+use sha3::Digest;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
@@ -68,15 +69,17 @@ async fn validate_credentials(
     credentials: &Credentials,
     pool: &SqlitePool,
 ) -> Result<uuid::Uuid, PublishError> {
-    let pw = credentials.password.expose_secret();
+    let password_hash =
+        sha3::Sha3_256::digest(credentials.password.expose_secret().as_bytes());
+    let password_hash = format!("{:x}", password_hash);
     let user_id: Option<_> = sqlx::query!(
         r#"
         SELECT user_id
         FROM users
-        WHERE username = $1 AND password = $2
+        WHERE username = $1 AND password_hash = $2
         "#,
         credentials.username,
-        pw,
+        password_hash,
     )
     .fetch_optional(pool)
     .await
