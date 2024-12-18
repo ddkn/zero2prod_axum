@@ -1,5 +1,5 @@
 use argon2::password_hash::SaltString;
-use argon2::{Argon2, PasswordHasher};
+use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use once_cell::sync::Lazy;
 use reqwest::Url;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
@@ -47,7 +47,7 @@ pub struct TestApp {
     pub port: u16,
     pub db_name: String,
     pub email_server: MockServer,
-    test_user: TestUser,
+    pub test_user: TestUser,
 }
 
 impl TestApp {
@@ -105,23 +105,6 @@ impl TestApp {
             .await
             .expect("Failed to execute request.")
     }
-
-    pub async fn test_user(&self) -> (String, String) {
-        let conn_opt = SqliteConnectOptions::from_str(&self.db_name).unwrap();
-
-        let pool = SqlitePoolOptions::new()
-            .max_connections(10)
-            .connect_with(conn_opt)
-            .await
-            .expect("Failed to create database pool.");
-
-        let row =
-            sqlx::query!("SELECT username, password_hash FROM users LIMIT 1",)
-                .fetch_one(&pool)
-                .await
-                .expect("Failed to create test_users.");
-        (row.username, row.password_hash)
-    }
 }
 
 // Should be Uuid, but SQLite does not handle UUID as type
@@ -143,12 +126,15 @@ impl TestUser {
     async fn store(&self, pool: &SqlitePool) {
         let user_id_str = self.user_id.to_string();
         let salt = SaltString::generate(&mut rand::thread_rng());
-        // For testing we don't care about Argon2 parameters, however,
-        // we care for actual code implementation
-        let password_hash = Argon2::default()
-            .hash_password(self.password.as_bytes(), &salt)
-            .unwrap()
-            .to_string();
+        // Match parameters for default password
+        let password_hash = Argon2::new(
+            Algorithm::Argon2id,
+            Version::V0x13,
+            Params::new(15000, 2, 1, None).unwrap(),
+        )
+        .hash_password(self.password.as_bytes(), &salt)
+        .unwrap()
+        .to_string();
 
         sqlx::query!(
             "

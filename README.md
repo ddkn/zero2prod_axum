@@ -23,7 +23,7 @@ Some notable changes include the following substitutions,
 - [x] 8. Error Handling
 - [x] 9. Naive Newsletter Delivery
 - [ ] 10. Securing Our API
-  - [ ] 10.2.5 User Enumeration
+  - [ ] 10.3 Is it safe?
 
 ### Warning
 

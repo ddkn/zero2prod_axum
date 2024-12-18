@@ -1,7 +1,66 @@
 use crate::helpers::{spawn_app, ConfirmationLinks, TestApp};
 use axum::http::StatusCode;
+use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
+
+#[tokio::test]
+async fn invalid_password_is_rejected() {
+    let app = spawn_app().await;
+
+    // Random credentials
+    let username = &app.test_user.username;
+    let password = Uuid::new_v4().to_string();
+
+    let resp = reqwest::Client::new()
+        .post(format!("http://{}/newsletters", &app.addr))
+        .basic_auth(username, Some(password))
+        .json(&serde_json::json!({
+            "title": "Newsletter title",
+            "content": {
+                "text": "Newsletter body as plain text",
+                "html": "<p>Newsletter body as HTML</p>",
+            }
+        }))
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    assert_eq!(resp.status().as_u16(), 401);
+    assert_eq!(
+        r#"Basic realm="publish""#,
+        resp.headers()["WWW-Authenticate"]
+    );
+}
+
+#[tokio::test]
+async fn non_existing_user_is_rejected() {
+    let app = spawn_app().await;
+
+    // Random credentials
+    let username = Uuid::new_v4().to_string();
+    let password = Uuid::new_v4().to_string();
+
+    let resp = reqwest::Client::new()
+        .post(format!("http://{}/newsletters", &app.addr))
+        .basic_auth(username, Some(password))
+        .json(&serde_json::json!({
+            "title": "Newsletter title",
+            "content": {
+                "text": "Newsletter body as plain text",
+                "html": "<p>Newsletter body as HTML</p>",
+            }
+        }))
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    assert_eq!(resp.status().as_u16(), 401);
+    assert_eq!(
+        r#"Basic realm="publish""#,
+        resp.headers()["WWW-Authenticate"]
+    );
+}
 
 #[tokio::test]
 async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
@@ -93,7 +152,7 @@ async fn requests_missing_authorization_are_rejected() {
     let app = spawn_app().await;
 
     let resp = reqwest::Client::new()
-        .post(&format!("http://{}/newsletters", &app.addr))
+        .post(format!("http://{}/newsletters", &app.addr))
         .json(&serde_json::json!({
             "title": "Newsletter Title",
             "content": {
@@ -139,11 +198,11 @@ async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
         .pop()
         .unwrap();
 
-    app.get_confirmation_links(&email_request)
+    app.get_confirmation_links(email_request)
 }
 
 async fn create_confirmed_subscriber(app: &TestApp) {
-    let confirmation_link = create_unconfirmed_subscriber(&app).await;
+    let confirmation_link = create_unconfirmed_subscriber(app).await;
 
     reqwest::get(confirmation_link.html)
         .await
