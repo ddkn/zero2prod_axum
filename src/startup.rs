@@ -20,7 +20,8 @@
 
 use crate::email_client::EmailClient;
 use crate::routes::{
-    confirm, health_check, home, publish_newsletter, subscriptions,
+    confirm, health_check, home, login, login_form, publish_newsletter,
+    subscriptions,
 };
 use crate::settings::AppSettings;
 use axum::{
@@ -63,6 +64,10 @@ pub fn app(
     Router::new()
         .route("/", get(home))
         .route("/health_check", get(health_check))
+        .route("/login", get(login_form))
+        // "/login" is reused when sending a post request or page
+        // refresh when submitting a form
+        .route("/login", post(login))
         .route("/subscriptions", post(subscriptions))
         .route("/subscriptions/confirm", get(confirm))
         .route("/newsletters", post(publish_newsletter))

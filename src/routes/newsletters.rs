@@ -1,14 +1,13 @@
+use crate::authentication::{validate_credentials, AuthError, Credentials};
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
 use crate::routes::error_chain_fmt;
-use crate::telemetry::spawn_blocking_with_tracing;
 use anyhow::Context;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
 use base64::Engine;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 
@@ -45,11 +44,6 @@ impl IntoResponse for PublishError {
     }
 }
 
-struct Credentials {
-    username: String,
-    password: Secret<String>,
-}
-
 #[derive(serde::Deserialize)]
 pub struct BodyData {
     title: String,
@@ -66,89 +60,6 @@ struct ConfirmedSubscriber {
     email: SubscriberEmail,
 }
 
-#[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
-async fn validate_credentials(
-    credentials: Credentials,
-    pool: &SqlitePool,
-) -> Result<uuid::Uuid, PublishError> {
-    let mut user_id: Option<uuid::Uuid> = None;
-    let mut expected_password_hash = Secret::new(
-        "$argon2id$v=19$m=15000,t=2,p=1$\
-        gZiV/M1gPc22ElAH/Jh1Hw$\
-        CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
-            .to_string(),
-    );
-
-    if let Some((stored_user_id, stored_expected_password_hash)) =
-        get_stored_credentials(&credentials.username, pool)
-            .await
-            .map_err(PublishError::UnexepectedError)?
-    {
-        user_id = Some(stored_user_id);
-        expected_password_hash = stored_expected_password_hash;
-    }
-
-    spawn_blocking_with_tracing(move || {
-        verify_password_hash(expected_password_hash, credentials.password)
-    })
-    .await
-    .context("Failed to spawn blocking task")
-    .map_err(PublishError::UnexepectedError)??;
-
-    // This is only set to `Some` if we find credentials in the store
-    // In the event the password matches, the `user_id` being `None`
-    // causes the `PublishError::AuthError`
-    user_id.ok_or_else(|| {
-        PublishError::AuthError(anyhow::anyhow!("Unknown user."))
-    })
-}
-
-#[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
-async fn get_stored_credentials(
-    username: &str,
-    pool: &SqlitePool,
-) -> Result<Option<(uuid::Uuid, Secret<String>)>, anyhow::Error> {
-    let row: Option<_> = sqlx::query!(
-        r#"
-        SELECT user_id, password_hash
-        FROM users
-        WHERE username = $1
-        "#,
-        username,
-    )
-    .fetch_optional(pool)
-    .await
-    .context("Failed to perform a query to retrieve stored credentials.")?
-    .map(|row| {
-        let user_id = uuid::Uuid::parse_str(&row.user_id.unwrap()).unwrap();
-        (user_id, Secret::new(row.password_hash))
-    });
-
-    Ok(row)
-}
-
-#[tracing::instrument(
-    name = "Verify password hash",
-    skip(expected_password_hash, password_candidate)
-)]
-fn verify_password_hash(
-    expected_password_hash: Secret<String>,
-    password_candidate: Secret<String>,
-) -> Result<(), PublishError> {
-    let expected_password_hash =
-        PasswordHash::new(expected_password_hash.expose_secret())
-            .context("Failed to parse hash in PHC string format.")
-            .map_err(PublishError::UnexepectedError)?;
-
-    Argon2::default()
-        .verify_password(
-            password_candidate.expose_secret().as_bytes(),
-            &expected_password_hash,
-        )
-        .context("Invalid password.")
-        .map_err(PublishError::AuthError)
-}
-
 // `HeaderMap` must come before `Json` as the later consumes the whole
 // request leaving nothing for `HeaderMap` to do
 #[tracing::instrument(name = "Publish a newsletter issue", skip(pool, email_client, body, headers), fields(username=tracing::field::Empty, user_id=tracing::field::Empty))]
@@ -162,7 +73,19 @@ pub async fn publish_newsletter(
         basic_authentication(&headers).map_err(PublishError::AuthError)?;
     tracing::Span::current()
         .record("username", tracing::field::display(&credentials.username));
-    let user_id = validate_credentials(credentials, &pool).await?;
+    let user_id = validate_credentials(credentials, &pool)
+        .await
+        // Matching on `AuthError` but map to `PublishError` to ensure
+        // context for the top-level error is preserved in our
+        //  middleware.
+        .map_err(|e| match e {
+            AuthError::InvalidCredentials(_) => {
+                PublishError::AuthError(e.into())
+            }
+            AuthError::UnexpectedError(_) => {
+                PublishError::UnexepectedError(e.into())
+            }
+        })?;
     tracing::Span::current()
         .record("user_id", tracing::field::display(&user_id));
 

@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: BSD-2-Clause
 
+pub mod authentication;
 pub mod domain;
 pub mod email_client;
 pub mod routes;
