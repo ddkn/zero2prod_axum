@@ -19,7 +19,9 @@
 //! src/startup.rs
 
 use crate::email_client::EmailClient;
-use crate::routes::{confirm, health_check, publish_newsletter, subscriptions};
+use crate::routes::{
+    confirm, health_check, home, publish_newsletter, subscriptions,
+};
 use crate::settings::AppSettings;
 use axum::{
     http::Request,
@@ -59,12 +61,7 @@ pub fn app(
     let base_url = ApplicationBaseUrl(base_url);
     // Define single routes for now
     Router::new()
-        .route(
-            "/",
-            get(|| async {
-                "Welcome to an Axum Zero to Production implementation!\n"
-            }),
-        )
+        .route("/", get(home))
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscriptions))
         .route("/subscriptions/confirm", get(confirm))
