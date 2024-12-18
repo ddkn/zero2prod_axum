@@ -204,7 +204,6 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         test_user: TestUser::generate(),
     };
-    // add_test_user(&db_conn.pool).await;
     test_app.test_user.store(&db_conn.pool).await;
 
     test_app
@@ -236,21 +235,4 @@ async fn create_connect_test_db() -> Result<TestDatabaseConnection, sqlx::Error>
 pub async fn cleanup_test_db(db_name: String) -> Result<(), sqlx::Error> {
     remove_file(&db_name)?;
     Ok(())
-}
-
-async fn add_test_user(pool: &SqlitePool) {
-    let user_id = Uuid::new_v4().to_string();
-    let username = Uuid::new_v4().to_string();
-    let password = Uuid::new_v4().to_string();
-    sqlx::query!(
-        "
-        INSERT INTO users (user_id, username, password_hash)
-        VALUES ($1, $2, $3)",
-        user_id,
-        username,
-        password,
-    )
-    .execute(pool)
-    .await
-    .expect("Failed to create test users.");
 }
