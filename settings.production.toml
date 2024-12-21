@@ -1,6 +1,7 @@
 addr = "0.0.0.0"
 port = 9000
 base_url = "https://postmark.com"
+hmac_secret = "6jJ1jiKxRK/YlA4Jp21+mly37i+kTygv8LqKbk23Vps="
 
 [database]
 name = "demo.db"

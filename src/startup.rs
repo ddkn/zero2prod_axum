@@ -29,7 +29,7 @@ use axum::{
     routing::{get, post},
     Extension, Router,
 };
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, Secret};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     SqlitePool,
@@ -38,10 +38,10 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-// use tower::{Service, ServiceBuilder, ServiceExt};
-use tower_http::trace::{DefaultOnResponse, TraceLayer};
+use tower_http::trace::TraceLayer;
 use tracing::Level;
 
+#[allow(dead_code)]
 pub struct Application {
     port: u16,
     router: Router,
@@ -52,14 +52,19 @@ pub struct Application {
 #[derive(Clone)]
 pub struct ApplicationBaseUrl(pub String);
 
+#[derive(Clone)]
+pub struct HmacSecret(pub Secret<String>);
+
 pub fn app(
     pool: SqlitePool,
     email_client: EmailClient,
     base_url: String,
+    hmac_secret: Secret<String>,
 ) -> Router {
     // wrap client in Arc for multiple handlers
     let shared_client = Arc::new(email_client);
     let base_url = ApplicationBaseUrl(base_url);
+    let hmac_secret = HmacSecret(hmac_secret);
     // Define single routes for now
     Router::new()
         .route("/", get(home))
@@ -77,6 +82,7 @@ pub fn app(
         // or wrap in a unique struct, e.g., struct ClientA(Client)
         .layer(Extension(shared_client))
         .layer(Extension(base_url))
+        .layer(Extension(hmac_secret))
         .layer(TraceLayer::new_for_http().make_span_with(
             |request: &Request<_>| {
                 let request_id = uuid::Uuid::new_v4().to_string();
@@ -116,6 +122,7 @@ impl Application {
             settings.email_client.authorization_token.clone(),
             timeout,
         );
+        let hmac_secret = settings.hmac_secret.clone();
 
         let conn_opt = SqliteConnectOptions::from_str(&connection_str)
             .expect("Failed to create sqlite connection.")
@@ -132,7 +139,7 @@ impl Application {
         let base_url = settings.normalized_base_url().unwrap();
         Ok(Self {
             port,
-            router: app(pool, email_client, base_url.into()),
+            router: app(pool, email_client, base_url.into(), hmac_secret),
             listener,
         })
     }

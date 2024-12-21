@@ -1,6 +1,7 @@
 addr = "127.0.0.1"
 port = 9000
 base_url = "127.0.0.1"
+hmac_secret = "vkJj6pv2S/T7hXTpn65P7o91Gqqug0dZrN+VPHb9i7Q="
 
 [database]
 name = "demo.db"

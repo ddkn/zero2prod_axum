@@ -37,6 +37,7 @@ pub struct AppSettings {
     pub database: DatabaseSettings,
     pub email_client: EmailClientSettings,
     pub base_url: String,
+    pub hmac_secret: Secret<String>,
 }
 
 impl AppSettings {
@@ -47,7 +48,7 @@ impl AppSettings {
             return Url::parse(&format!("http://{}", base_url));
         }
 
-        Url::parse(&base_url)
+        Url::parse(base_url)
     }
 }
 

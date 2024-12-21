@@ -118,7 +118,7 @@ pub async fn subscriptions(
         .await
         .context("Failed to insert new subscriber into the database")?;
     let subscription_token = generate_subscription_token();
-    let _ = store_token(&mut transaction, subscriber_id, &subscription_token)
+    store_token(&mut transaction, subscriber_id, &subscription_token)
         .await
         .context(
             "Failed to store the confirmation token for a new subscriber.",
